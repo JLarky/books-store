@@ -33,6 +33,7 @@ import {
   listCategoriesForOwner,
   updateCategory,
 } from "../data/categories.ts";
+import { backupJson, buildOwnerBackup } from "../data/backup.ts";
 import { HomePage } from "../ui/home-page.tsx";
 import { LoginPage } from "../ui/login-page.tsx";
 import { AccessPage } from "../ui/access-page.tsx";
@@ -104,13 +105,22 @@ async function dashboardView(
 ) {
   const user = await getUser(ownerId);
   if (!user) return null;
-  const [allBooks, categories, shareInvites] = await Promise.all([
+  const [allBooks, categories, shareInvites, backup] = await Promise.all([
     listBooksForOwner(ownerId),
     listCategoriesForOwner(ownerId),
     listShareInvites(ownerId),
+    buildOwnerBackup(ownerId),
   ]);
   const books = allBooks.filter((book) => book.categoryIds.length === 0);
-  return { user, books, categories, shareInvites, error, notice };
+  return {
+    user,
+    books,
+    categories,
+    shareInvites,
+    backupJson: backupJson(backup),
+    error,
+    notice,
+  };
 }
 
 async function categoriesView(

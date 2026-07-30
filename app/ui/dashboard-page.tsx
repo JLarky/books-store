@@ -6,6 +6,7 @@ import type { DeviceInvite, User } from "../data/users.ts";
 import { BookUploadForm, OwnerBookList, panel } from "./book-form.tsx";
 import { ConfirmDeleteForm } from "./confirm-delete-form.tsx";
 import { Document } from "./document.tsx";
+import { JsonBackup } from "./json-backup.tsx";
 import { button, muted, shell, brandMark, displayTitle } from "./styles.ts";
 
 export function DashboardPage(
@@ -14,11 +15,12 @@ export function DashboardPage(
     books: Book[];
     categories: Category[];
     shareInvites: ShareInvite[];
+    backupJson: string;
     error: string | null;
     notice: string | null;
   }>,
 ) {
-  const { books, categories, shareInvites, error, notice } = h.props;
+  const { books, categories, shareInvites, backupJson, error, notice } = h.props;
   return () => (
     <Document title="Dashboard · Books Store">
       <main mix={shell}>
@@ -134,6 +136,8 @@ export function DashboardPage(
             ) : null}
           </>,
         )}
+
+        <JsonBackup jsonContent={backupJson} />
       </main>
     </Document>
   );
