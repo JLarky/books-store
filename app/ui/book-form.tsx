@@ -8,7 +8,11 @@ import { button, muted } from "./styles.ts";
 
 function categoryPicker(categories: Category[], selectedIds: string[]): RemixNode {
   const selected = new Set(selectedIds);
-  const summary = categories.map((category) => category.name).join(" · ");
+  const selectedCategories = categories.filter((category) => selected.has(category.id));
+  const summary =
+    selectedCategories.length > 0
+      ? selectedCategories.map((category) => category.name).join(" · ")
+      : "Categories";
 
   return (
     <details
