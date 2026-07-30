@@ -6,11 +6,16 @@ export type Book = {
   id: string;
   ownerId: string;
   description: string;
+  categoryIds: string[];
   contentType: string;
   chunkCount: number;
   createdAt: string;
   receivedAt: string | null;
 };
+
+function normalizeBook(book: Book): Book {
+  return { ...book, categoryIds: book.categoryIds ?? [] };
+}
 
 export type ShareInvite = {
   id: string;
@@ -54,8 +59,10 @@ async function deleteImageChunks(bookId: string, chunkCount: number) {
 
 export async function getBook(bookId: string): Promise<Book | null> {
   const kv = await openKv();
-  if (kv) return (await kv.get<Book>(kvKey("book", bookId))).value;
-  return ((await readLocal()).books[bookId] as Book | undefined) ?? null;
+  const book = kv
+    ? (await kv.get<Book>(kvKey("book", bookId))).value
+    : (((await readLocal()).books[bookId] as Book | undefined) ?? null);
+  return book ? normalizeBook(book) : null;
 }
 
 export async function listBooksForOwner(ownerId: string): Promise<Book[]> {
@@ -67,15 +74,20 @@ export async function listBooksForOwner(ownerId: string): Promise<Book[]> {
     const books: Book[] = [];
     for (const id of ids) {
       const book = (await kv.get<Book>(kvKey("book", id))).value;
-      if (book) books.push(book);
+      if (book) books.push(normalizeBook(book));
     }
     return books.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   const store = await readLocal();
   return Object.values(store.books)
-    .map((entry) => entry as Book)
+    .map((entry) => normalizeBook(entry as Book))
     .filter((book) => book.ownerId === ownerId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function listBooksInCategory(ownerId: string, categoryId: string): Promise<Book[]> {
+  const books = await listBooksForOwner(ownerId);
+  return books.filter((book) => book.categoryIds.includes(categoryId));
 }
 
 async function saveBookIndex(ownerId: string, bookIds: string[]) {
@@ -83,9 +95,14 @@ async function saveBookIndex(ownerId: string, bookIds: string[]) {
   if (kv) await kv.set(kvKey("userbooks", ownerId), bookIds);
 }
 
+function uniqueIds(ids: string[]): string[] {
+  return [...new Set(ids.filter(Boolean))];
+}
+
 export async function createBook(args: {
   ownerId: string;
   description: string;
+  categoryIds?: string[];
   contentType: string;
   bytes: Uint8Array;
 }): Promise<{ ok: true; book: Book } | { ok: false; error: string }> {
@@ -100,6 +117,7 @@ export async function createBook(args: {
     id: randomUUID(),
     ownerId: args.ownerId,
     description: args.description.trim(),
+    categoryIds: uniqueIds(args.categoryIds ?? []),
     contentType: args.contentType,
     chunkCount: chunks.length,
     createdAt: new Date().toISOString(),
@@ -122,15 +140,19 @@ export async function createBook(args: {
   return { ok: true, book };
 }
 
-export async function updateBookDescription(
+export async function updateBook(
   ownerId: string,
   bookId: string,
-  description: string,
+  args: { description: string; categoryIds?: string[] },
 ): Promise<{ ok: true; book: Book } | { ok: false; error: string }> {
   const book = await getBook(bookId);
   if (!book || book.ownerId !== ownerId) return { ok: false, error: "Book not found" };
-  if (!description.trim()) return { ok: false, error: "Description is required" };
-  const next = { ...book, description: description.trim() };
+  if (!args.description.trim()) return { ok: false, error: "Description is required" };
+  const next = {
+    ...book,
+    description: args.description.trim(),
+    categoryIds: args.categoryIds == null ? book.categoryIds : uniqueIds(args.categoryIds),
+  };
   const kv = await openKv();
   if (kv) await kv.set(kvKey("book", bookId), next);
   else {
@@ -139,6 +161,17 @@ export async function updateBookDescription(
     await writeLocal(store);
   }
   return { ok: true, book: next };
+}
+
+export async function removeCategoryFromBooks(ownerId: string, categoryId: string) {
+  const books = await listBooksForOwner(ownerId);
+  for (const book of books) {
+    if (!book.categoryIds.includes(categoryId)) continue;
+    await updateBook(ownerId, book.id, {
+      description: book.description,
+      categoryIds: book.categoryIds.filter((id) => id !== categoryId),
+    });
+  }
 }
 
 export async function deleteBook(

@@ -1,27 +1,23 @@
 import type { Handle } from "remix/ui";
 import { css } from "remix/ui";
 import type { Book, ShareInvite } from "../data/books.ts";
+import type { Category } from "../data/categories.ts";
 import type { DeviceInvite, User } from "../data/users.ts";
+import { BookUploadForm, OwnerBookList, panel } from "./book-form.tsx";
 import { Document } from "./document.tsx";
 import { button, muted, shell, brandMark, displayTitle } from "./styles.ts";
-
-function formatReceived(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 export function DashboardPage(
   h: Handle<{
     user: User;
     books: Book[];
+    categories: Category[];
     shareInvites: ShareInvite[];
     error: string | null;
     notice: string | null;
   }>,
 ) {
-  const { books, shareInvites, error, notice } = h.props;
+  const { books, categories, shareInvites, error, notice } = h.props;
   return () => (
     <Document title="Dashboard · Books Store">
       <main mix={shell}>
@@ -38,6 +34,9 @@ export function DashboardPage(
             Books Store
           </strong>
           <div mix={css({ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" })}>
+            <a href="/app/categories" mix={button({ secondary: true })}>
+              Categories
+            </a>
             <a href="/account" mix={button({ secondary: true })}>
               Account
             </a>
@@ -53,51 +52,144 @@ export function DashboardPage(
           <p mix={brandMark}>Your list</p>
           <h1 mix={displayTitle}>Books dashboard</h1>
           <p mix={css(muted)}>
-            Upload a cover image and a short description. Create a share link so others can view the
-            list and mark books as received.
+            Upload covers, assign categories, and create a share link so others can browse by
+            category and mark books as received.
           </p>
           {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
           {notice ? <p mix={css({ color: "#b8d4a8" })}>{notice}</p> : null}
         </section>
 
-        <section
-          mix={css({
-            maxWidth: "720px",
-            marginBottom: "48px",
-            padding: "24px",
-            background: "#261f1a",
-            border: "1px solid #4a4036",
-            borderRadius: "20px",
-          })}
-        >
-          <h2 mix={css({ margin: "0 0 16px", fontFamily: "Fraunces, Georgia, serif" })}>
-            Add a book
-          </h2>
-          <form
-            method="POST"
-            action="/app"
-            encType="multipart/form-data"
-            mix={css({ display: "flex", flexDirection: "column", gap: "14px" })}
-          >
-            <input type="hidden" name="intent" value="add-book" />
-            <label>
-              Cover image
-              <input type="file" name="image" accept="image/*" required />
-            </label>
-            <label>
-              Description
-              <textarea name="description" required placeholder="Title, notes, why it matters…" />
-            </label>
-            <button type="submit" mix={button()}>
-              Add book
-            </button>
-          </form>
-        </section>
+        {panel(
+          <>
+            <h2 mix={css({ margin: "0 0 16px", fontFamily: "Fraunces, Georgia, serif" })}>
+              Add a book
+            </h2>
+            <BookUploadForm action="/app" categories={categories} />
+          </>,
+        )}
 
         <section mix={css({ maxWidth: "720px", marginBottom: "48px" })}>
           <h2 mix={css({ fontFamily: "Fraunces, Georgia, serif" })}>Books</h2>
-          {books.length === 0 ? (
-            <p mix={css(muted)}>No books yet. Add your first cover and description above.</p>
+          <OwnerBookList books={books} categories={categories} action="/app" />
+        </section>
+
+        {panel(
+          <>
+            <h2 mix={css({ margin: "0 0 8px", fontFamily: "Fraunces, Georgia, serif" })}>
+              Share links
+            </h2>
+            <p mix={css({ ...muted, marginTop: 0 })}>
+              Anyone with a share link can browse categories and press “I’ve received that book.”
+              They cannot add or edit books.
+            </p>
+            <form method="POST" action="/app">
+              <input type="hidden" name="intent" value="create-share" />
+              <button type="submit" mix={button()}>
+                Create invite link
+              </button>
+            </form>
+            {shareInvites.length > 0 ? (
+              <ul mix={css({ listStyle: "none", margin: "20px 0 0", padding: 0 })}>
+                {shareInvites.map((invite) => (
+                  <li
+                    key={invite.id}
+                    mix={css({
+                      display: "flex",
+                      gap: "12px",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      padding: "12px 0",
+                      borderTop: "1px solid #4a4036",
+                    })}
+                  >
+                    <code mix={css({ color: "#c4b5a0", fontSize: "13px" })}>
+                      /share/{invite.id}
+                    </code>
+                    <a href={`/share/${invite.id}`} mix={css({ color: "#c4b5a0" })}>
+                      Open
+                    </a>
+                    <form method="POST" action="/app">
+                      <input type="hidden" name="intent" value="revoke-share" />
+                      <input type="hidden" name="shareId" value={invite.id} />
+                      <button
+                        type="submit"
+                        mix={css({
+                          border: 0,
+                          background: "transparent",
+                          color: "#ffb4a8",
+                          cursor: "pointer",
+                          font: "inherit",
+                          textDecoration: "underline",
+                        })}
+                      >
+                        Revoke
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>,
+        )}
+      </main>
+    </Document>
+  );
+}
+
+export function CategoriesPage(
+  h: Handle<{
+    categories: Category[];
+    error: string | null;
+    notice: string | null;
+  }>,
+) {
+  const { categories, error, notice } = h.props;
+  return () => (
+    <Document title="Categories · Books Store">
+      <main mix={shell}>
+        <nav mix={css({ display: "flex", justifyContent: "space-between", alignItems: "center" })}>
+          <a href="/app" mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}>
+            ← Dashboard
+          </a>
+        </nav>
+        <section mix={css({ maxWidth: "720px", padding: "48px 0 24px" })}>
+          <p mix={brandMark}>Organize</p>
+          <h1 mix={displayTitle}>Categories</h1>
+          <p mix={css(muted)}>Create categories, then open one to upload books directly into it.</p>
+          {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
+          {notice ? <p mix={css({ color: "#b8d4a8" })}>{notice}</p> : null}
+        </section>
+
+        {panel(
+          <>
+            <h2 mix={css({ margin: "0 0 16px", fontFamily: "Fraunces, Georgia, serif" })}>
+              New category
+            </h2>
+            <form
+              method="POST"
+              action="/app/categories"
+              mix={css({ display: "flex", flexDirection: "column", gap: "14px" })}
+            >
+              <input type="hidden" name="intent" value="create-category" />
+              <label>
+                Name
+                <input type="text" name="name" required placeholder="Fiction, kids, gifts…" />
+              </label>
+              <label>
+                Description
+                <textarea name="description" placeholder="What belongs in this category?" />
+              </label>
+              <button type="submit" mix={button()}>
+                Create category
+              </button>
+            </form>
+          </>,
+        )}
+
+        <section mix={css({ maxWidth: "720px", marginBottom: "64px" })}>
+          <h2 mix={css({ fontFamily: "Fraunces, Georgia, serif" })}>Your categories</h2>
+          {categories.length === 0 ? (
+            <p mix={css(muted)}>No categories yet.</p>
           ) : (
             <ul
               mix={css({
@@ -106,140 +198,136 @@ export function DashboardPage(
                 padding: 0,
                 display: "flex",
                 flexDirection: "column",
-                gap: "20px",
+                gap: "16px",
               })}
             >
-              {books.map((book) => (
+              {categories.map((category) => (
                 <li
-                  key={book.id}
+                  key={category.id}
                   mix={css({
-                    display: "grid",
-                    gridTemplateColumns: "minmax(96px, 140px) 1fr",
-                    gap: "18px",
                     padding: "18px",
                     background: "#261f1a",
                     border: "1px solid #4a4036",
                     borderRadius: "18px",
-                    "@media (max-width: 560px)": { gridTemplateColumns: "1fr" },
                   })}
                 >
-                  <img
-                    src={`/books/${book.id}/image`}
-                    alt=""
+                  <a
+                    href={`/app/categories/${category.id}`}
                     mix={css({
-                      width: "100%",
-                      aspectRatio: "3 / 4",
-                      objectFit: "cover",
-                      borderRadius: "12px",
-                      background: "#141210",
+                      color: "#f5f0e8",
+                      textDecoration: "none",
+                      fontFamily: "Fraunces, Georgia, serif",
+                      fontSize: "22px",
+                      fontWeight: 700,
                     })}
-                  />
-                  <div>
-                    <p mix={css({ margin: "0 0 12px", whiteSpace: "pre-wrap" })}>
-                      {book.description}
-                    </p>
-                    {book.receivedAt ? (
-                      <p mix={css({ ...muted, margin: "0 0 12px", fontSize: "14px" })}>
-                        Received {formatReceived(book.receivedAt)}
-                      </p>
-                    ) : (
-                      <p mix={css({ ...muted, margin: "0 0 12px", fontSize: "14px" })}>
-                        Not received yet
-                      </p>
-                    )}
-                    <form
-                      method="POST"
-                      action="/app"
-                      mix={css({ display: "flex", flexDirection: "column", gap: "10px" })}
-                    >
-                      <input type="hidden" name="intent" value="update-description" />
-                      <input type="hidden" name="bookId" value={book.id} />
-                      <label>
-                        Edit description
-                        <textarea name="description" value={book.description} />
-                      </label>
-                      <div mix={css({ display: "flex", gap: "10px", flexWrap: "wrap" })}>
-                        <button type="submit" mix={button({ secondary: true })}>
-                          Save description
-                        </button>
-                      </div>
-                    </form>
-                    <form method="POST" action="/app" mix={css({ marginTop: "8px" })}>
-                      <input type="hidden" name="intent" value="delete-book" />
-                      <input type="hidden" name="bookId" value={book.id} />
-                      <button type="submit" mix={button({ secondary: true })}>
-                        Delete book
-                      </button>
-                    </form>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section
-          mix={css({
-            maxWidth: "720px",
-            marginBottom: "64px",
-            padding: "24px",
-            background: "#261f1a",
-            border: "1px solid #4a4036",
-            borderRadius: "20px",
-          })}
-        >
-          <h2 mix={css({ margin: "0 0 8px", fontFamily: "Fraunces, Georgia, serif" })}>
-            Share links
-          </h2>
-          <p mix={css({ ...muted, marginTop: 0 })}>
-            Anyone with a share link can view the list and press “I’ve received that book.” They
-            cannot add or edit books.
-          </p>
-          <form method="POST" action="/app">
-            <input type="hidden" name="intent" value="create-share" />
-            <button type="submit" mix={button()}>
-              Create invite link
-            </button>
-          </form>
-          {shareInvites.length > 0 ? (
-            <ul mix={css({ listStyle: "none", margin: "20px 0 0", padding: 0 })}>
-              {shareInvites.map((invite) => (
-                <li
-                  key={invite.id}
-                  mix={css({
-                    display: "flex",
-                    gap: "12px",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    padding: "12px 0",
-                    borderTop: "1px solid #4a4036",
-                  })}
-                >
-                  <code mix={css({ color: "#c4b5a0", fontSize: "13px" })}>/share/{invite.id}</code>
-                  <a href={`/share/${invite.id}`} mix={css({ color: "#c4b5a0" })}>
-                    Open
+                  >
+                    {category.name}
                   </a>
-                  <form method="POST" action="/app">
-                    <input type="hidden" name="intent" value="revoke-share" />
-                    <input type="hidden" name="shareId" value={invite.id} />
-                    <button
-                      type="submit"
-                      mix={css({
-                        border: 0,
-                        background: "transparent",
-                        color: "#ffb4a8",
-                        cursor: "pointer",
-                        font: "inherit",
-                        textDecoration: "underline",
-                      })}
-                    >
-                      Revoke
+                  {category.description ? (
+                    <p mix={css({ ...muted, margin: "8px 0 14px", whiteSpace: "pre-wrap" })}>
+                      {category.description}
+                    </p>
+                  ) : (
+                    <p mix={css({ ...muted, margin: "8px 0 14px" })}>No description</p>
+                  )}
+                  <form
+                    method="POST"
+                    action="/app/categories"
+                    mix={css({ display: "flex", flexDirection: "column", gap: "10px" })}
+                  >
+                    <input type="hidden" name="intent" value="update-category" />
+                    <input type="hidden" name="categoryId" value={category.id} />
+                    <label>
+                      Name
+                      <input type="text" name="name" value={category.name} required />
+                    </label>
+                    <label>
+                      Description
+                      <textarea name="description" value={category.description} />
+                    </label>
+                    <div mix={css({ display: "flex", gap: "10px", flexWrap: "wrap" })}>
+                      <button type="submit" mix={button({ secondary: true })}>
+                        Save
+                      </button>
+                      <a href={`/app/categories/${category.id}`} mix={button({ secondary: true })}>
+                        Open
+                      </a>
+                    </div>
+                  </form>
+                  <form method="POST" action="/app/categories" mix={css({ marginTop: "8px" })}>
+                    <input type="hidden" name="intent" value="delete-category" />
+                    <input type="hidden" name="categoryId" value={category.id} />
+                    <button type="submit" mix={button({ secondary: true })}>
+                      Delete category
                     </button>
                   </form>
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+      </main>
+    </Document>
+  );
+}
+
+export function CategoryDetailPage(
+  h: Handle<{
+    category: Category;
+    books: Book[];
+    categories: Category[];
+    error: string | null;
+    notice: string | null;
+  }>,
+) {
+  const { category, books, categories, error, notice } = h.props;
+  const action = `/app/categories/${category.id}`;
+  return () => (
+    <Document title={`${category.name} · Books Store`}>
+      <main mix={shell}>
+        <nav mix={css({ display: "flex", justifyContent: "space-between", alignItems: "center" })}>
+          <a
+            href="/app/categories"
+            mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}
+          >
+            ← Categories
+          </a>
+          <a href="/app" mix={button({ secondary: true })}>
+            Dashboard
+          </a>
+        </nav>
+        <section mix={css({ maxWidth: "720px", padding: "48px 0 24px" })}>
+          <p mix={brandMark}>Category</p>
+          <h1 mix={displayTitle}>{category.name}</h1>
+          {category.description ? (
+            <p mix={css({ ...muted, whiteSpace: "pre-wrap" })}>{category.description}</p>
           ) : null}
+          {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
+          {notice ? <p mix={css({ color: "#b8d4a8" })}>{notice}</p> : null}
+        </section>
+
+        {panel(
+          <>
+            <h2 mix={css({ margin: "0 0 16px", fontFamily: "Fraunces, Georgia, serif" })}>
+              Add a book to this category
+            </h2>
+            <BookUploadForm
+              action={action}
+              categories={categories}
+              lockedCategoryId={category.id}
+              selectedCategoryIds={[category.id]}
+            />
+          </>,
+        )}
+
+        <section mix={css({ maxWidth: "720px", marginBottom: "64px" })}>
+          <h2 mix={css({ fontFamily: "Fraunces, Georgia, serif" })}>Books in this category</h2>
+          <OwnerBookList
+            books={books}
+            categories={categories}
+            action={action}
+            emptyMessage="No books in this category yet."
+          />
         </section>
       </main>
     </Document>
@@ -319,93 +407,6 @@ export function AccountPage(
             </ul>
           ) : null}
         </section>
-      </main>
-    </Document>
-  );
-}
-
-export function SharePage(
-  h: Handle<{
-    shareId: string;
-    books: Book[];
-    error: string | null;
-    notice: string | null;
-  }>,
-) {
-  const { shareId, books, error, notice } = h.props;
-  return () => (
-    <Document title="Shared list · Books Store">
-      <main mix={shell}>
-        <section mix={css({ maxWidth: "720px", padding: "48px 0 24px" })}>
-          <p mix={brandMark}>Shared list</p>
-          <h1 mix={displayTitle}>Books you can receive</h1>
-          <p mix={css(muted)}>
-            This link is view-only. You can mark a book as received; you cannot add or edit entries.
-          </p>
-          {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
-          {notice ? <p mix={css({ color: "#b8d4a8" })}>{notice}</p> : null}
-        </section>
-        {books.length === 0 ? (
-          <p mix={css(muted)}>This list is empty for now.</p>
-        ) : (
-          <ul
-            mix={css({
-              listStyle: "none",
-              margin: 0,
-              padding: "0 0 64px",
-              maxWidth: "720px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "20px",
-            })}
-          >
-            {books.map((book) => (
-              <li
-                key={book.id}
-                mix={css({
-                  display: "grid",
-                  gridTemplateColumns: "minmax(96px, 140px) 1fr",
-                  gap: "18px",
-                  padding: "18px",
-                  background: "#261f1a",
-                  border: "1px solid #4a4036",
-                  borderRadius: "18px",
-                  "@media (max-width: 560px)": { gridTemplateColumns: "1fr" },
-                })}
-              >
-                <img
-                  src={`/books/${book.id}/image?share=${encodeURIComponent(shareId)}`}
-                  alt=""
-                  mix={css({
-                    width: "100%",
-                    aspectRatio: "3 / 4",
-                    objectFit: "cover",
-                    borderRadius: "12px",
-                    background: "#141210",
-                  })}
-                />
-                <div>
-                  <p mix={css({ margin: "0 0 12px", whiteSpace: "pre-wrap" })}>
-                    {book.description}
-                  </p>
-                  {book.receivedAt ? (
-                    <p mix={css({ color: "#b8d4a8", margin: 0 })}>
-                      Received {formatReceived(book.receivedAt)}
-                    </p>
-                  ) : (
-                    <form method="POST" action={`/share/${shareId}`}>
-                      <input type="hidden" name="intent" value="mark-received" />
-                      <input type="hidden" name="bookId" value={book.id} />
-                      <button type="submit" mix={button()}>
-                        I've received that book
-                      </button>
-                    </form>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
       </main>
     </Document>
   );

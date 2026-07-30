@@ -31,6 +31,7 @@ export type LocalStore = {
   users: Record<string, Record<string, unknown>>;
   books: Record<string, Record<string, unknown>>;
   bookImages: Record<string, string[]>;
+  categories: Record<string, Record<string, unknown>>;
   shareInvites: Record<string, Record<string, unknown>>;
   credIndex: Record<string, string>;
   inviteIndex: Record<string, Record<string, unknown>>;
@@ -43,6 +44,7 @@ export async function readLocal(): Promise<LocalStore> {
       users: parsed.users ?? {},
       books: parsed.books ?? {},
       bookImages: parsed.bookImages ?? {},
+      categories: parsed.categories ?? {},
       shareInvites: parsed.shareInvites ?? {},
       credIndex: parsed.credIndex ?? {},
       inviteIndex: parsed.inviteIndex ?? {},
@@ -52,6 +54,7 @@ export async function readLocal(): Promise<LocalStore> {
       users: {},
       books: {},
       bookImages: {},
+      categories: {},
       shareInvites: {},
       credIndex: {},
       inviteIndex: {},

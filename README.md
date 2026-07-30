@@ -11,10 +11,10 @@ Shared book list app, built from the same Remix/Vite foundation as `../finance-p
 
 ## V1 features
 
-- Owner dashboard: upload a cover image and text description for each book
-- Share invite links: anyone with the link can view the list
+- Categories with name and description; books can belong to one or more categories
+- Owner dashboard plus a Categories page for create/manage, and per-category book upload
+- Share invite links (Russian UI): browse categories, open a category, mark books as received
 - Viewers cannot add books or edit descriptions
-- “I've received that book” saves the received timestamp in the database
 
 ## Local development
 

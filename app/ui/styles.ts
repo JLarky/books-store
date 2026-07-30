@@ -31,6 +31,7 @@ export const shell = css({
     font: "inherit",
     fontSize: "14px",
   },
+  "& input[type=checkbox]": { accentColor: "#c4b5a0", width: "16px", height: "16px" },
   "& form > label": {
     display: "flex",
     flexDirection: "column",
