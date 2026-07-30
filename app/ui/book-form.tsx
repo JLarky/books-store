@@ -3,6 +3,7 @@ import { css } from "remix/ui";
 import type { Book } from "../data/books.ts";
 import type { Category } from "../data/categories.ts";
 import { BookImageFields } from "./book-image-fields.tsx";
+import { ConfirmDeleteForm } from "./confirm-delete-form.tsx";
 import { button, muted } from "./styles.ts";
 
 export function BookUploadForm(
@@ -211,13 +212,12 @@ export function OwnerBookList(
                   Save book
                 </button>
               </form>
-              <form method="POST" action={action} mix={css({ marginTop: "8px" })}>
-                <input type="hidden" name="intent" value="delete-book" />
-                <input type="hidden" name="bookId" value={book.id} />
-                <button type="submit" mix={button({ secondary: true })}>
-                  Delete book
-                </button>
-              </form>
+              <ConfirmDeleteForm
+                action={action}
+                message="Delete this book?"
+                label="Delete book"
+                fields={{ intent: "delete-book", bookId: book.id }}
+              />
             </div>
           </li>
         ))}
