@@ -40,6 +40,17 @@ void test("books can belong to categories and be marked received", async () => {
     });
     assert.equal(category.ok, true);
     if (!category.ok) return;
+    assert.equal(category.category.kind, "receive");
+
+    const sending = await createCategory({
+      ownerId: user.id,
+      name: "На отправку",
+      description: "Отдать",
+      kind: "send",
+    });
+    assert.equal(sending.ok, true);
+    if (!sending.ok) return;
+    assert.equal(sending.category.kind, "send");
 
     const created = await createBook({
       ownerId: user.id,

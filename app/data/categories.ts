@@ -2,13 +2,28 @@ import { randomUUID } from "node:crypto";
 import { kvKey, openKv, readLocal, writeLocal } from "./kv.ts";
 import { getUser } from "./users.ts";
 
+export type CategoryKind = "receive" | "send";
+
 export type Category = {
   id: string;
   ownerId: string;
   name: string;
   description: string;
+  kind: CategoryKind;
   createdAt: string;
 };
+
+export function parseCategoryKind(value: string | null | undefined): CategoryKind | null {
+  if (value === "receive" || value === "send") return value;
+  return null;
+}
+
+export function normalizeCategory(
+  raw: Category | (Omit<Category, "kind"> & { kind?: string }),
+): Category {
+  const kind = parseCategoryKind(raw.kind) ?? "receive";
+  return { ...raw, kind };
+}
 
 async function saveCategoryIndex(ownerId: string, categoryIds: string[]) {
   const kv = await openKv();
@@ -17,34 +32,44 @@ async function saveCategoryIndex(ownerId: string, categoryIds: string[]) {
 
 export async function getCategory(categoryId: string): Promise<Category | null> {
   const kv = await openKv();
-  if (kv) return (await kv.get<Category>(kvKey("category", categoryId))).value;
-  return ((await readLocal()).categories[categoryId] as Category | undefined) ?? null;
+  if (kv) {
+    const value = (await kv.get<Category>(kvKey("category", categoryId))).value;
+    return value ? normalizeCategory(value) : null;
+  }
+  const raw = (await readLocal()).categories[categoryId] as Category | undefined;
+  return raw ? normalizeCategory(raw) : null;
 }
 
-export async function listCategoriesForOwner(ownerId: string): Promise<Category[]> {
+export async function listCategoriesForOwner(
+  ownerId: string,
+  kind?: CategoryKind | null,
+): Promise<Category[]> {
   const kv = await openKv();
+  let categories: Category[];
   if (kv) {
     const user = await getUser(ownerId);
     if (!user) return [];
     const ids = (await kv.get<string[]>(kvKey("usercategories", ownerId))).value ?? [];
-    const categories: Category[] = [];
+    categories = [];
     for (const id of ids) {
       const category = (await kv.get<Category>(kvKey("category", id))).value;
-      if (category) categories.push(category);
+      if (category) categories.push(normalizeCategory(category));
     }
-    return categories.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  } else {
+    const store = await readLocal();
+    categories = Object.values(store.categories)
+      .map((entry) => normalizeCategory(entry as Category))
+      .filter((category) => category.ownerId === ownerId);
   }
-  const store = await readLocal();
-  return Object.values(store.categories)
-    .map((entry) => entry as Category)
-    .filter((category) => category.ownerId === ownerId)
-    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  if (kind) categories = categories.filter((category) => category.kind === kind);
+  return categories.sort((a, b) => a.name.localeCompare(b.name, "ru"));
 }
 
 export async function createCategory(args: {
   ownerId: string;
   name: string;
   description: string;
+  kind?: CategoryKind;
 }): Promise<{ ok: true; category: Category } | { ok: false; error: string }> {
   if (!args.name.trim()) return { ok: false, error: "Name is required" };
   const category: Category = {
@@ -52,6 +77,7 @@ export async function createCategory(args: {
     ownerId: args.ownerId,
     name: args.name.trim(),
     description: args.description.trim(),
+    kind: args.kind ?? "receive",
     createdAt: new Date().toISOString(),
   };
   const kv = await openKv();
@@ -72,15 +98,17 @@ export async function updateCategory(args: {
   categoryId: string;
   name: string;
   description: string;
+  kind?: CategoryKind;
 }): Promise<{ ok: true; category: Category } | { ok: false; error: string }> {
   const category = await getCategory(args.categoryId);
   if (!category || category.ownerId !== args.ownerId)
     return { ok: false, error: "Category not found" };
   if (!args.name.trim()) return { ok: false, error: "Name is required" };
-  const next = {
+  const next: Category = {
     ...category,
     name: args.name.trim(),
     description: args.description.trim(),
+    kind: args.kind ?? category.kind,
   };
   const kv = await openKv();
   if (kv) await kv.set(kvKey("category", args.categoryId), next);

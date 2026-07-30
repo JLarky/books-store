@@ -1,7 +1,7 @@
 import type { Handle } from "remix/ui";
 import { css } from "remix/ui";
 import type { Book } from "../data/books.ts";
-import type { Category } from "../data/categories.ts";
+import type { Category, CategoryKind } from "../data/categories.ts";
 import { ConfirmDeleteForm } from "./confirm-delete-form.tsx";
 import { Document } from "./document.tsx";
 import { button, muted, shell, brandMark, displayTitle } from "./styles.ts";
@@ -13,23 +13,70 @@ function formatReceivedRu(iso: string) {
   });
 }
 
+export function ShareFlowChooserPage(
+  h: Handle<{
+    shareId: string;
+    error: string | null;
+  }>,
+) {
+  const { shareId, error } = h.props;
+  return () => (
+    <Document title="Книги · Books Store" lang="ru">
+      <main mix={shell}>
+        <section mix={css({ maxWidth: "720px", padding: "48px 0 24px" })}>
+          <p mix={brandMark}>Общий список</p>
+          <h1 mix={displayTitle}>Что вы хотите сделать?</h1>
+          <p mix={css(muted)}>Сначала выберите: получить книги или отправить.</p>
+          {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
+        </section>
+        <div
+          mix={css({
+            maxWidth: "720px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
+            marginBottom: "64px",
+          })}
+        >
+          <a href={`/share/${shareId}?kind=receive`} mix={button()}>
+            Получить
+          </a>
+          <a href={`/share/${shareId}?kind=send`} mix={button({ secondary: true })}>
+            Отправить
+          </a>
+        </div>
+      </main>
+    </Document>
+  );
+}
+
 export function ShareCategoriesPage(
   h: Handle<{
     shareId: string;
+    kind: CategoryKind;
     categories: Category[];
     error: string | null;
   }>,
 ) {
-  const { shareId, categories, error } = h.props;
+  const { shareId, kind, categories, error } = h.props;
+  const title = kind === "send" ? "Категории для отправки" : "Категории для получения";
   return () => (
-    <Document title="Категории · Books Store" lang="ru">
+    <Document title={`${title} · Books Store`} lang="ru">
       <main mix={shell}>
-        <section mix={css({ maxWidth: "720px", padding: "48px 0 24px" })}>
+        <nav mix={css({ marginBottom: "8px" })}>
+          <a
+            href={`/share/${shareId}`}
+            mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}
+          >
+            ← Получить / Отправить
+          </a>
+        </nav>
+        <section mix={css({ maxWidth: "720px", padding: "32px 0 24px" })}>
           <p mix={brandMark}>Общий список</p>
-          <h1 mix={displayTitle}>Категории книг</h1>
+          <h1 mix={displayTitle}>{title}</h1>
           <p mix={css(muted)}>
-            Выберите категорию, чтобы посмотреть книги. Вы можете отметить, что книгу уже получили.
-            Добавлять и редактировать книги нельзя.
+            Выберите категорию, чтобы посмотреть книги. Вы можете отметить, что книгу уже{" "}
+            {kind === "send" ? "отправили" : "получили"}. Добавлять и редактировать книги нельзя.
           </p>
           {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
         </section>
@@ -50,7 +97,7 @@ export function ShareCategoriesPage(
             {categories.map((category) => (
               <li key={category.id}>
                 <a
-                  href={`/share/${shareId}/categories/${category.id}`}
+                  href={`/share/${shareId}/categories/${category.id}?kind=${kind}`}
                   mix={css({
                     display: "block",
                     padding: "18px",
@@ -91,19 +138,23 @@ export function ShareCategoriesPage(
 export function ShareCategoryPage(
   h: Handle<{
     shareId: string;
+    kind: CategoryKind;
     category: Category;
     books: Book[];
     error: string | null;
     notice: string | null;
   }>,
 ) {
-  const { shareId, category, books, error, notice } = h.props;
+  const { shareId, kind, category, books, error, notice } = h.props;
+  const isSend = kind === "send" || category.kind === "send";
+  const backHref = `/share/${shareId}?kind=${kind}`;
+  const action = `/share/${shareId}/categories/${category.id}?kind=${kind}`;
   return () => (
     <Document title={`${category.name} · Books Store`} lang="ru">
       <main mix={shell}>
         <nav mix={css({ marginBottom: "8px" })}>
           <a
-            href={`/share/${shareId}`}
+            href={backHref}
             mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}
           >
             ← Все категории
@@ -164,21 +215,25 @@ export function ShareCategoryPage(
                   {book.receivedAt ? (
                     <div>
                       <p mix={css({ color: "#b8d4a8", margin: 0 })}>
-                        Получено: {formatReceivedRu(book.receivedAt)}
+                        {isSend ? "Отправлено" : "Получено"}: {formatReceivedRu(book.receivedAt)}
                       </p>
                       <ConfirmDeleteForm
-                        action={`/share/${shareId}/categories/${category.id}`}
-                        message="Снять отметку о получении этой книги?"
+                        action={action}
+                        message={
+                          isSend
+                            ? "Снять отметку об отправке этой книги?"
+                            : "Снять отметку о получении этой книги?"
+                        }
                         label="Ой, на самом деле нет"
                         fields={{ intent: "unmark-received", bookId: book.id }}
                       />
                     </div>
                   ) : (
-                    <form method="POST" action={`/share/${shareId}/categories/${category.id}`}>
+                    <form method="POST" action={action}>
                       <input type="hidden" name="intent" value="mark-received" />
                       <input type="hidden" name="bookId" value={book.id} />
                       <button type="submit" mix={button()}>
-                        Я получил(а) эту книгу
+                        {isSend ? "Я отправил(а) эту книгу" : "Я получил(а) эту книгу"}
                       </button>
                     </form>
                   )}

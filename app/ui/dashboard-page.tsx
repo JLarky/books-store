@@ -141,23 +141,70 @@ export function DashboardPage(
 
 export function CategoriesPage(
   h: Handle<{
+    kind: "receive" | "send" | null;
     categories: Category[];
     error: string | null;
     notice: string | null;
   }>,
 ) {
-  const { categories, error, notice } = h.props;
+  const { kind, categories, error, notice } = h.props;
+  if (!kind) {
+    return () => (
+      <Document title="Categories · Books Store">
+        <main mix={shell}>
+          <nav
+            mix={css({ display: "flex", justifyContent: "space-between", alignItems: "center" })}
+          >
+            <a href="/app" mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}>
+              ← Dashboard
+            </a>
+          </nav>
+          <section mix={css({ maxWidth: "720px", padding: "48px 0 24px" })}>
+            <p mix={brandMark}>Organize</p>
+            <h1 mix={displayTitle}>Categories</h1>
+            <p mix={css(muted)}>Choose whether you are browsing receive or send categories.</p>
+          </section>
+          <div
+            mix={css({
+              maxWidth: "720px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px",
+              marginBottom: "64px",
+            })}
+          >
+            <a href="/app/categories?kind=receive" mix={button()}>
+              Receive
+            </a>
+            <a href="/app/categories?kind=send" mix={button({ secondary: true })}>
+              Send
+            </a>
+          </div>
+        </main>
+      </Document>
+    );
+  }
+
+  const listAction = `/app/categories?kind=${kind}`;
+  const kindLabel = kind === "send" ? "Send" : "Receive";
+
   return () => (
-    <Document title="Categories · Books Store">
+    <Document title={`${kindLabel} categories · Books Store`}>
       <main mix={shell}>
         <nav mix={css({ display: "flex", justifyContent: "space-between", alignItems: "center" })}>
+          <a
+            href="/app/categories"
+            mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}
+          >
+            ← Receive / Send
+          </a>
           <a href="/app" mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}>
-            ← Dashboard
+            Dashboard
           </a>
         </nav>
         <section mix={css({ maxWidth: "720px", padding: "48px 0 24px" })}>
           <p mix={brandMark}>Organize</p>
-          <h1 mix={displayTitle}>Categories</h1>
+          <h1 mix={displayTitle}>{kindLabel} categories</h1>
           <p mix={css(muted)}>Create categories, then open one to upload books directly into it.</p>
           {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
           {notice ? <p mix={css({ color: "#b8d4a8" })}>{notice}</p> : null}
@@ -170,7 +217,7 @@ export function CategoriesPage(
             </h2>
             <form
               method="POST"
-              action="/app/categories"
+              action={listAction}
               mix={css({ display: "flex", flexDirection: "column", gap: "14px" })}
             >
               <input type="hidden" name="intent" value="create-category" />
@@ -181,6 +228,10 @@ export function CategoriesPage(
               <label>
                 Description
                 <textarea name="description" placeholder="What belongs in this category?" />
+              </label>
+              <label mix={css({ display: "flex", gap: "10px", alignItems: "center" })}>
+                <input type="checkbox" name="sending" value="1" checked={kind === "send"} />
+                Sending category (unchecked = receiving)
               </label>
               <button type="submit" mix={button()}>
                 Create category
@@ -235,7 +286,7 @@ export function CategoriesPage(
                   )}
                   <form
                     method="POST"
-                    action="/app/categories"
+                    action={listAction}
                     mix={css({ display: "flex", flexDirection: "column", gap: "10px" })}
                   >
                     <input type="hidden" name="intent" value="update-category" />
@@ -248,6 +299,15 @@ export function CategoriesPage(
                       Description
                       <textarea name="description" value={category.description} />
                     </label>
+                    <label mix={css({ display: "flex", gap: "10px", alignItems: "center" })}>
+                      <input
+                        type="checkbox"
+                        name="sending"
+                        value="1"
+                        checked={category.kind === "send"}
+                      />
+                      Sending category (unchecked = receiving)
+                    </label>
                     <div mix={css({ display: "flex", gap: "10px", flexWrap: "wrap" })}>
                       <button type="submit" mix={button({ secondary: true })}>
                         Save
@@ -258,7 +318,7 @@ export function CategoriesPage(
                     </div>
                   </form>
                   <ConfirmDeleteForm
-                    action="/app/categories"
+                    action={listAction}
                     message="Delete this category?"
                     label="Delete category"
                     fields={{ intent: "delete-category", categoryId: category.id }}
