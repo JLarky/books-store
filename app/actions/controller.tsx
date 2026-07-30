@@ -23,6 +23,7 @@ import {
   markBookReceived,
   removeCategoryFromBooks,
   revokeShareInvite,
+  unmarkBookReceived,
   updateBook,
 } from "../data/books.ts";
 import {
@@ -509,16 +510,26 @@ export default createController(routes, {
 
       if (c.request.method === "POST") {
         const form = await c.request.formData();
-        if (text(form, "intent") === "mark-received") {
-          const result = await markBookReceived(text(form, "bookId"), invite.ownerId);
+        const intent = text(form, "intent");
+        if (intent === "mark-received" || intent === "unmark-received") {
+          const result =
+            intent === "mark-received"
+              ? await markBookReceived(text(form, "bookId"), invite.ownerId)
+              : await unmarkBookReceived(text(form, "bookId"), invite.ownerId);
           const books = await listBooksInCategory(invite.ownerId, categoryId);
           return c.render(
             <ShareCategoryPage
               shareId={shareId}
               category={category}
               books={books}
-              error={result.ok ? null : "Не удалось отметить книгу"}
-              notice={result.ok ? "Книга отмечена как полученная" : null}
+              error={result.ok ? null : "Не удалось изменить отметку"}
+              notice={
+                result.ok
+                  ? intent === "mark-received"
+                    ? "Книга отмечена как полученная"
+                    : "Отметка о получении снята"
+                  : null
+              }
             />,
             { status: result.ok ? 200 : 400 },
           );

@@ -9,6 +9,7 @@ import {
   getShareInvite,
   listBooksInCategory,
   markBookReceived,
+  unmarkBookReceived,
 } from "../app/data/books.ts";
 import { createCategory } from "../app/data/categories.ts";
 import { ensureDevUser } from "../app/data/users.ts";
@@ -70,6 +71,11 @@ void test("books can belong to categories and be marked received", async () => {
     assert.equal(received.ok, true);
     if (!received.ok) return;
     assert.ok(received.book.receivedAt);
+
+    const unmarked = await unmarkBookReceived(created.book.id, user.id);
+    assert.equal(unmarked.ok, true);
+    if (!unmarked.ok) return;
+    assert.equal(unmarked.book.receivedAt, null);
   } finally {
     delete process.env.BOOKS_STORE_DATA_PATH;
     await rm(dir, { recursive: true, force: true });

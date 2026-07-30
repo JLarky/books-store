@@ -2,6 +2,7 @@ import type { Handle } from "remix/ui";
 import { css } from "remix/ui";
 import type { Book } from "../data/books.ts";
 import type { Category } from "../data/categories.ts";
+import { ConfirmDeleteForm } from "./confirm-delete-form.tsx";
 import { Document } from "./document.tsx";
 import { button, muted, shell, brandMark, displayTitle } from "./styles.ts";
 
@@ -161,9 +162,17 @@ export function ShareCategoryPage(
                     {book.description}
                   </p>
                   {book.receivedAt ? (
-                    <p mix={css({ color: "#b8d4a8", margin: 0 })}>
-                      Получено: {formatReceivedRu(book.receivedAt)}
-                    </p>
+                    <div>
+                      <p mix={css({ color: "#b8d4a8", margin: 0 })}>
+                        Получено: {formatReceivedRu(book.receivedAt)}
+                      </p>
+                      <ConfirmDeleteForm
+                        action={`/share/${shareId}/categories/${category.id}`}
+                        message="Снять отметку о получении этой книги?"
+                        label="Ой, на самом деле нет"
+                        fields={{ intent: "unmark-received", bookId: book.id }}
+                      />
+                    </div>
                   ) : (
                     <form method="POST" action={`/share/${shareId}/categories/${category.id}`}>
                       <input type="hidden" name="intent" value="mark-received" />
