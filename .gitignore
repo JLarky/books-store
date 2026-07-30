@@ -1,0 +1,7 @@
+node_modules/
+.vite-hooks/
+.output/
+dist/
+.env
+data/app-store.local.json
+data/app-store.*.local.json
