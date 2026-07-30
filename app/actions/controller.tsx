@@ -158,6 +158,30 @@ async function handleAddBook(
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
+async function optionalImageFromForm(
+  form: FormData,
+): Promise<{ contentType: string; bytes: Uint8Array } | undefined> {
+  const image = form.get("image");
+  if (!(image instanceof File) || image.size === 0) return undefined;
+  return {
+    contentType: image.type || "application/octet-stream",
+    bytes: new Uint8Array(await image.arrayBuffer()),
+  };
+}
+
+async function handleUpdateBook(
+  ownerId: string,
+  form: FormData,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const image = await optionalImageFromForm(form);
+  const result = await updateBook(ownerId, text(form, "bookId"), {
+    description: text(form, "description"),
+    categoryIds: formCategoryIds(form),
+    image,
+  });
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
 export default createController(routes, {
   actions: {
     async health() {
@@ -231,10 +255,7 @@ export default createController(routes, {
         }
 
         if (intent === "update-book") {
-          const result = await updateBook(auth.id, text(form, "bookId"), {
-            description: text(form, "description"),
-            categoryIds: formCategoryIds(form),
-          });
+          const result = await handleUpdateBook(auth.id, form);
           const view = await dashboardView(
             auth.id,
             result.ok ? null : result.error,
@@ -354,10 +375,7 @@ export default createController(routes, {
         }
 
         if (intent === "update-book") {
-          const result = await updateBook(auth.id, text(form, "bookId"), {
-            description: text(form, "description"),
-            categoryIds: formCategoryIds(form),
-          });
+          const result = await handleUpdateBook(auth.id, form);
           const view = await categoryDetailView(
             auth.id,
             categoryId,

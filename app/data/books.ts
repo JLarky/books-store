@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { kvKey, openKv, readLocal, writeLocal } from "./kv.ts";
 import { getUser, saveUser } from "./users.ts";
+import { validateImageEdge } from "../utils/image.ts";
 
 export type Book = {
   id: string;
@@ -111,6 +112,8 @@ export async function createBook(args: {
   if (args.bytes.byteLength === 0) return { ok: false, error: "Image is required" };
   if (args.bytes.byteLength > MAX_IMAGE_BYTES)
     return { ok: false, error: "Image must be 2 MB or smaller" };
+  const dimensions = validateImageEdge(args.bytes);
+  if (!dimensions.ok) return dimensions;
 
   const chunks = encodeChunks(args.bytes);
   const book: Book = {
@@ -143,16 +146,40 @@ export async function createBook(args: {
 export async function updateBook(
   ownerId: string,
   bookId: string,
-  args: { description: string; categoryIds?: string[] },
+  args: {
+    description: string;
+    categoryIds?: string[];
+    image?: { contentType: string; bytes: Uint8Array };
+  },
 ): Promise<{ ok: true; book: Book } | { ok: false; error: string }> {
   const book = await getBook(bookId);
   if (!book || book.ownerId !== ownerId) return { ok: false, error: "Book not found" };
   if (!args.description.trim()) return { ok: false, error: "Description is required" };
-  const next = {
+
+  let next: Book = {
     ...book,
     description: args.description.trim(),
     categoryIds: args.categoryIds == null ? book.categoryIds : uniqueIds(args.categoryIds),
   };
+
+  if (args.image) {
+    if (!args.image.contentType.startsWith("image/"))
+      return { ok: false, error: "File must be an image" };
+    if (args.image.bytes.byteLength === 0) return { ok: false, error: "Image is required" };
+    if (args.image.bytes.byteLength > MAX_IMAGE_BYTES)
+      return { ok: false, error: "Image must be 2 MB or smaller" };
+    const dimensions = validateImageEdge(args.image.bytes);
+    if (!dimensions.ok) return dimensions;
+    const chunks = encodeChunks(args.image.bytes);
+    await deleteImageChunks(bookId, book.chunkCount);
+    await setImageChunks(bookId, chunks);
+    next = {
+      ...next,
+      contentType: args.image.contentType,
+      chunkCount: chunks.length,
+    };
+  }
+
   const kv = await openKv();
   if (kv) await kv.set(kvKey("book", bookId), next);
   else {

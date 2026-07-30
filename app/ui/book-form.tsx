@@ -2,6 +2,7 @@ import type { Handle, RemixNode } from "remix/ui";
 import { css } from "remix/ui";
 import type { Book } from "../data/books.ts";
 import type { Category } from "../data/categories.ts";
+import { BookImageFields } from "./book-image-fields.tsx";
 import { button, muted } from "./styles.ts";
 
 export function BookUploadForm(
@@ -28,14 +29,7 @@ export function BookUploadForm(
       {lockedCategoryId ? (
         <input type="hidden" name="categoryIds" value={lockedCategoryId} />
       ) : null}
-      <label>
-        Cover image
-        <input type="file" name="image" accept="image/*" required />
-      </label>
-      <label>
-        Description
-        <textarea name="description" required placeholder="Title, notes, why it matters…" />
-      </label>
+      <BookImageFields imageRequired />
       {choosable.length > 0 ? (
         <fieldset
           mix={css({
@@ -168,14 +162,15 @@ export function OwnerBookList(
               <form
                 method="POST"
                 action={action}
+                encType="multipart/form-data"
                 mix={css({ display: "flex", flexDirection: "column", gap: "10px" })}
               >
                 <input type="hidden" name="intent" value="update-book" />
                 <input type="hidden" name="bookId" value={book.id} />
-                <label>
-                  Edit description
-                  <textarea name="description" value={book.description} />
-                </label>
+                <BookImageFields
+                  description={book.description}
+                  existingImageSrc={`/books/${book.id}/image`}
+                />
                 {categories.length > 0 ? (
                   <fieldset
                     mix={css({

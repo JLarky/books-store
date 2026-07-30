@@ -13,6 +13,20 @@ import {
 import { createCategory } from "../app/data/categories.ts";
 import { ensureDevUser } from "../app/data/users.ts";
 
+function fakePng(width: number, height: number): Uint8Array {
+  const bytes = new Uint8Array(24);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  bytes[16] = (width >>> 24) & 0xff;
+  bytes[17] = (width >>> 16) & 0xff;
+  bytes[18] = (width >>> 8) & 0xff;
+  bytes[19] = width & 0xff;
+  bytes[20] = (height >>> 24) & 0xff;
+  bytes[21] = (height >>> 16) & 0xff;
+  bytes[22] = (height >>> 8) & 0xff;
+  bytes[23] = height & 0xff;
+  return bytes;
+}
+
 void test("books can belong to categories and be marked received", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "books-store-"));
   process.env.BOOKS_STORE_DATA_PATH = path.join(dir, "store.json");
@@ -31,11 +45,19 @@ void test("books can belong to categories and be marked received", async () => {
       description: "A calm mystery",
       categoryIds: [category.category.id],
       contentType: "image/png",
-      bytes: new Uint8Array([137, 80, 78, 71]),
+      bytes: fakePng(120, 160),
     });
     assert.equal(created.ok, true);
     if (!created.ok) return;
     assert.deepEqual(created.book.categoryIds, [category.category.id]);
+
+    const oversized = await createBook({
+      ownerId: user.id,
+      description: "Too big",
+      contentType: "image/png",
+      bytes: fakePng(301, 100),
+    });
+    assert.equal(oversized.ok, false);
 
     const inCategory = await listBooksInCategory(user.id, category.category.id);
     assert.equal(inCategory.length, 1);
