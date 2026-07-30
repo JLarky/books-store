@@ -79,6 +79,10 @@ function formCategoryKind(form: FormData): CategoryKind {
   return form.get("sending") === "1" || form.get("sending") === "on" ? "send" : "receive";
 }
 
+function formTwoCopies(form: FormData): boolean {
+  return form.get("twoCopies") === "1" || form.get("twoCopies") === "on";
+}
+
 function healthResponse(body: Record<string, unknown>, status = 200) {
   return Response.json(body, { status, headers: { "cache-control": "no-store" } });
 }
@@ -185,6 +189,7 @@ async function handleAddBook(
     categoryIds,
     contentType: image.type || "application/octet-stream",
     bytes: new Uint8Array(await image.arrayBuffer()),
+    twoCopies: formTwoCopies(form),
   });
   return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
@@ -208,6 +213,7 @@ async function handleUpdateBook(
   const result = await updateBook(ownerId, text(form, "bookId"), {
     description: text(form, "description"),
     categoryIds: formCategoryIds(form),
+    twoCopies: formTwoCopies(form),
     image,
   });
   return result.ok ? { ok: true } : { ok: false, error: result.error };

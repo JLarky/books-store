@@ -11,6 +11,7 @@ export type Book = {
   contentType: string;
   chunkCount: number;
   imageByteLength: number | null;
+  twoCopies: boolean;
   createdAt: string;
   receivedAt: string | null;
 };
@@ -20,6 +21,7 @@ function normalizeBook(book: Book): Book {
     ...book,
     categoryIds: book.categoryIds ?? [],
     imageByteLength: book.imageByteLength ?? null,
+    twoCopies: book.twoCopies === true,
   };
 }
 
@@ -111,6 +113,7 @@ export async function createBook(args: {
   categoryIds?: string[];
   contentType: string;
   bytes: Uint8Array;
+  twoCopies?: boolean;
 }): Promise<{ ok: true; book: Book } | { ok: false; error: string }> {
   if (!args.description.trim()) return { ok: false, error: "Description is required" };
   if (!args.contentType.startsWith("image/")) return { ok: false, error: "File must be an image" };
@@ -129,6 +132,7 @@ export async function createBook(args: {
     contentType: args.contentType,
     chunkCount: chunks.length,
     imageByteLength: args.bytes.byteLength,
+    twoCopies: args.twoCopies === true,
     createdAt: new Date().toISOString(),
     receivedAt: null,
   };
@@ -155,6 +159,7 @@ export async function updateBook(
   args: {
     description: string;
     categoryIds?: string[];
+    twoCopies?: boolean;
     image?: { contentType: string; bytes: Uint8Array };
   },
 ): Promise<{ ok: true; book: Book } | { ok: false; error: string }> {
@@ -166,6 +171,7 @@ export async function updateBook(
     ...book,
     description: args.description.trim(),
     categoryIds: args.categoryIds == null ? book.categoryIds : uniqueIds(args.categoryIds),
+    twoCopies: args.twoCopies == null ? book.twoCopies : args.twoCopies === true,
   };
 
   if (args.image) {
