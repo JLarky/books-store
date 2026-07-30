@@ -50,6 +50,7 @@ import { AccessPage } from "../ui/access-page.tsx";
 import { InvitePage } from "../ui/invite-page.tsx";
 import {
   AccountPage,
+  BackupPage,
   CategoriesPage,
   CategoryDetailPage,
   DashboardPage,
@@ -127,11 +128,10 @@ async function dashboardView(
 ) {
   const user = await getUser(ownerId);
   if (!user) return null;
-  const [allBooks, categories, shareInvites, backup] = await Promise.all([
+  const [allBooks, categories, shareInvites] = await Promise.all([
     listBooksForOwner(ownerId),
     listCategoriesForOwner(ownerId),
     listShareInvites(ownerId),
-    buildOwnerBackup(ownerId),
   ]);
   const books = allBooks.filter((book) => book.categoryIds.length === 0);
   return {
@@ -139,7 +139,6 @@ async function dashboardView(
     books,
     categories,
     shareInvites,
-    backupJson: backupJson(backup),
     error,
     notice,
   };
@@ -339,6 +338,13 @@ export default createController(routes, {
 
       const view = await dashboardView(auth.id);
       return c.render(<DashboardPage {...view!} />);
+    },
+    async backup(c) {
+      const auth = await loadAuthedUser(c.session, c.request);
+      if ("missing" in auth) return c.render(accessMissing(routes.backup.href()));
+      if ("stale" in auth) return c.render(accessStale(routes.backup.href()));
+      const backup = await buildOwnerBackup(auth.id);
+      return c.render(<BackupPage backupJson={backupJson(backup)} />);
     },
     async categories(c) {
       const auth = await loadAuthedUser(c.session, c.request);

@@ -38,9 +38,8 @@ export const JsonBackup = clientEntry(
     return () => (
       <section
         mix={css({
-          borderTop: "1px solid #4a4036",
-          marginTop: "48px",
-          paddingTop: "32px",
+          marginTop: "32px",
+          paddingTop: "16px",
           maxWidth: "720px",
           marginBottom: "64px",
         })}
