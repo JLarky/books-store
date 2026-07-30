@@ -23,6 +23,7 @@ import {
   markBookReceived,
   removeCategoryFromBooks,
   revokeShareInvite,
+  unmarkBookReceived,
   updateBook,
 } from "../data/books.ts";
 import {
@@ -293,19 +294,23 @@ export default createController(routes, {
       const auth = await loadAuthedUser(c.session, c.request);
       if ("missing" in auth) return c.render(accessMissing(routes.categories.href()));
       if ("stale" in auth) return c.render(accessStale(routes.categories.href()));
+      const url = new URL(c.request.url);
 
       if (c.request.method === "POST") {
         const form = await c.request.formData();
         const intent = text(form, "intent");
+        const kind = parseCategoryKind(url.searchParams.get("kind")) ?? formCategoryKind(form);
 
         if (intent === "create-category") {
           const result = await createCategory({
             ownerId: auth.id,
             name: text(form, "name"),
             description: text(form, "description"),
+            kind: formCategoryKind(form),
           });
           const view = await categoriesView(
             auth.id,
+            result.ok ? result.category.kind : kind,
             result.ok ? null : result.error,
             result.ok ? "Category created" : null,
           );
@@ -318,9 +323,11 @@ export default createController(routes, {
             categoryId: text(form, "categoryId"),
             name: text(form, "name"),
             description: text(form, "description"),
+            kind: formCategoryKind(form),
           });
           const view = await categoriesView(
             auth.id,
+            result.ok ? result.category.kind : kind,
             result.ok ? null : result.error,
             result.ok ? "Category saved" : null,
           );
@@ -333,6 +340,7 @@ export default createController(routes, {
           const result = await deleteCategory(auth.id, categoryId);
           const view = await categoriesView(
             auth.id,
+            kind,
             result.ok ? null : result.error,
             result.ok ? "Category deleted" : null,
           );
@@ -340,7 +348,11 @@ export default createController(routes, {
         }
       }
 
-      return c.render(<CategoriesPage {...await categoriesView(auth.id)} />);
+      return c.render(
+        <CategoriesPage
+          {...await categoriesView(auth.id, parseCategoryKind(url.searchParams.get("kind")))}
+        />,
+      );
     },
     async category(c) {
       const auth = await loadAuthedUser(c.session, c.request);
@@ -509,16 +521,26 @@ export default createController(routes, {
 
       if (c.request.method === "POST") {
         const form = await c.request.formData();
-        if (text(form, "intent") === "mark-received") {
-          const result = await markBookReceived(text(form, "bookId"), invite.ownerId);
+        const intent = text(form, "intent");
+        if (intent === "mark-received" || intent === "unmark-received") {
+          const result =
+            intent === "mark-received"
+              ? await markBookReceived(text(form, "bookId"), invite.ownerId)
+              : await unmarkBookReceived(text(form, "bookId"), invite.ownerId);
           const books = await listBooksInCategory(invite.ownerId, categoryId);
           return c.render(
             <ShareCategoryPage
               shareId={shareId}
               category={category}
               books={books}
-              error={result.ok ? null : "Не удалось отметить книгу"}
-              notice={result.ok ? "Книга отмечена как полученная" : null}
+              error={result.ok ? null : "Не удалось изменить отметку"}
+              notice={
+                result.ok
+                  ? intent === "mark-received"
+                    ? "Книга отмечена как полученная"
+                    : "Отметка о получении снята"
+                  : null
+              }
             />,
             { status: result.ok ? 200 : 400 },
           );

@@ -242,6 +242,24 @@ export async function markBookReceived(
   return { ok: true, book: next };
 }
 
+export async function unmarkBookReceived(
+  bookId: string,
+  ownerId: string,
+): Promise<{ ok: true; book: Book } | { ok: false; error: string }> {
+  const book = await getBook(bookId);
+  if (!book || book.ownerId !== ownerId) return { ok: false, error: "Book not found" };
+  if (!book.receivedAt) return { ok: true, book };
+  const next = { ...book, receivedAt: null };
+  const kv = await openKv();
+  if (kv) await kv.set(kvKey("book", bookId), next);
+  else {
+    const store = await readLocal();
+    store.books[bookId] = next;
+    await writeLocal(store);
+  }
+  return { ok: true, book: next };
+}
+
 export async function getBookImage(
   bookId: string,
 ): Promise<{ contentType: string; bytes: Uint8Array } | null> {
