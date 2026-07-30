@@ -573,6 +573,21 @@ export default createController(routes, {
               ? await markBookReceived(text(form, "bookId"), invite.ownerId)
               : await unmarkBookReceived(text(form, "bookId"), invite.ownerId);
           const books = await listBooksInCategory(invite.ownerId, categoryId);
+          const receivedCount = books.filter((book) => book.receivedAt).length;
+          const allReceived = books.length > 0 && receivedCount === books.length;
+          const wantsJson = c.request.headers.get("accept")?.includes("application/json");
+          if (wantsJson) {
+            return Response.json(
+              {
+                ok: result.ok,
+                error: result.ok ? null : "Не удалось изменить отметку",
+                allReceived: result.ok && intent === "mark-received" && allReceived,
+                receivedCount,
+                totalCount: books.length,
+              },
+              { status: result.ok ? 200 : 400, headers: { "cache-control": "no-store" } },
+            );
+          }
           return c.render(
             <ShareCategoryPage
               shareId={id}
