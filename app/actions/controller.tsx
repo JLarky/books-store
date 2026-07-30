@@ -1,5 +1,12 @@
 import { createController } from "remix/router";
-import { bindUserSession, devAuthEnabled, userId } from "../middleware/auth-session.ts";
+import {
+  bindShareSession,
+  bindUserSession,
+  clearShareSession,
+  devAuthEnabled,
+  shareId,
+  userId,
+} from "../middleware/auth-session.ts";
 import { routes } from "../routes.ts";
 import {
   createDeviceInvite,
@@ -225,7 +232,10 @@ export default createController(routes, {
       }
     },
     async home(c) {
-      return c.render(<HomePage signedIn={userId(c.session, c.request) != null} />);
+      const viewerShareId = shareId(c.session, c.request);
+      return c.render(
+        <HomePage signedIn={userId(c.session, c.request) != null} shareId={viewerShareId} />,
+      );
     },
     async login(c) {
       const id = userId(c.session, c.request);
@@ -257,6 +267,7 @@ export default createController(routes, {
       c.session.unset("userId");
       c.session.unset("sessionHost");
       c.session.unset("challenge");
+      clearShareSession(c.session);
       return Response.redirect(new URL("/", c.request.url), 303);
     },
     async app(c) {
@@ -510,33 +521,35 @@ export default createController(routes, {
       );
     },
     async share(c) {
-      const shareId = c.params.shareId;
-      const invite = await getShareInvite(shareId);
+      const id = c.params.shareId;
+      const invite = await getShareInvite(id);
       if (!invite)
-        return c.render(<ShareFlowChooserPage shareId={shareId} error="Ссылка не найдена" />, {
+        return c.render(<ShareFlowChooserPage shareId={id} error="Ссылка не найдена" />, {
           status: 404,
         });
+      bindShareSession(c.session, c.request, id);
       const kind = parseCategoryKind(new URL(c.request.url).searchParams.get("kind"));
-      if (!kind) return c.render(<ShareFlowChooserPage shareId={shareId} error={null} />);
+      if (!kind) return c.render(<ShareFlowChooserPage shareId={id} error={null} />);
       const categories = await listCategoriesForOwner(invite.ownerId, kind);
       return c.render(
-        <ShareCategoriesPage shareId={shareId} kind={kind} categories={categories} error={null} />,
+        <ShareCategoriesPage shareId={id} kind={kind} categories={categories} error={null} />,
       );
     },
     async shareCategory(c) {
-      const { shareId, categoryId } = c.params;
-      const invite = await getShareInvite(shareId);
+      const { shareId: id, categoryId } = c.params;
+      const invite = await getShareInvite(id);
       if (!invite)
-        return c.render(<ShareFlowChooserPage shareId={shareId} error="Ссылка не найдена" />, {
+        return c.render(<ShareFlowChooserPage shareId={id} error="Ссылка не найдена" />, {
           status: 404,
         });
+      bindShareSession(c.session, c.request, id);
       const category = await getCategory(categoryId);
       const urlKind = parseCategoryKind(new URL(c.request.url).searchParams.get("kind"));
       const kind = urlKind ?? category?.kind ?? "receive";
       if (!category || category.ownerId !== invite.ownerId)
         return c.render(
           <ShareCategoriesPage
-            shareId={shareId}
+            shareId={id}
             kind={kind}
             categories={await listCategoriesForOwner(invite.ownerId, kind)}
             error="Категория не найдена"
@@ -556,7 +569,7 @@ export default createController(routes, {
           const books = await listBooksInCategory(invite.ownerId, categoryId);
           return c.render(
             <ShareCategoryPage
-              shareId={shareId}
+              shareId={id}
               kind={kind}
               category={category}
               books={books}
@@ -581,7 +594,7 @@ export default createController(routes, {
       const books = await listBooksInCategory(invite.ownerId, categoryId);
       return c.render(
         <ShareCategoryPage
-          shareId={shareId}
+          shareId={id}
           kind={kind}
           category={category}
           books={books}
@@ -596,11 +609,16 @@ export default createController(routes, {
       if (!book) return new Response("Not Found", { status: 404 });
 
       const id = userId(c.session, c.request);
-      const shareId = new URL(c.request.url).searchParams.get("share");
-      const share = shareId ? await getShareInvite(shareId) : null;
-      const allowed =
-        (id != null && id === book.ownerId) || (share != null && share.ownerId === book.ownerId);
-      if (!allowed) return new Response("Forbidden", { status: 403 });
+      const queryShareId = new URL(c.request.url).searchParams.get("share");
+      const sessionShareId = shareId(c.session, c.request);
+      const resolvedShareId = queryShareId || sessionShareId;
+      const share = resolvedShareId ? await getShareInvite(resolvedShareId) : null;
+      const ownerAllowed = id != null && id === book.ownerId;
+      const shareAllowed =
+        share != null &&
+        share.ownerId === book.ownerId &&
+        (sessionShareId === share.id || queryShareId === share.id);
+      if (!ownerAllowed && !shareAllowed) return new Response("Forbidden", { status: 403 });
 
       const image = await getBookImage(bookId);
       if (!image) return new Response("Not Found", { status: 404 });

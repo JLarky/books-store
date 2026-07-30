@@ -13,6 +13,16 @@ function formatReceivedRu(iso: string) {
   });
 }
 
+function ShareSignOut(_h: Handle) {
+  return () => (
+    <form method="POST" action="/logout">
+      <button type="submit" mix={button({ secondary: true })}>
+        Выйти
+      </button>
+    </form>
+  );
+}
+
 export function ShareFlowChooserPage(
   h: Handle<{
     shareId: string;
@@ -23,6 +33,9 @@ export function ShareFlowChooserPage(
   return () => (
     <Document title="Книги · Books Store" lang="ru">
       <main mix={shell}>
+        <nav mix={css({ display: "flex", justifyContent: "flex-end", marginBottom: "8px" })}>
+          <ShareSignOut />
+        </nav>
         <section mix={css({ maxWidth: "720px", padding: "48px 0 24px" })}>
           <p mix={brandMark}>Общий список</p>
           <h1 mix={displayTitle}>Что вы хотите сделать?</h1>
@@ -63,13 +76,22 @@ export function ShareCategoriesPage(
   return () => (
     <Document title={`${title} · Books Store`} lang="ru">
       <main mix={shell}>
-        <nav mix={css({ marginBottom: "8px" })}>
+        <nav
+          mix={css({
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "8px",
+          })}
+        >
           <a
             href={`/share/${shareId}`}
             mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}
           >
             ← Получить / Отправить
           </a>
+          <ShareSignOut />
         </nav>
         <section mix={css({ maxWidth: "720px", padding: "32px 0 24px" })}>
           <p mix={brandMark}>Общий список</p>
@@ -152,13 +174,22 @@ export function ShareCategoryPage(
   return () => (
     <Document title={`${category.name} · Books Store`} lang="ru">
       <main mix={shell}>
-        <nav mix={css({ marginBottom: "8px" })}>
+        <nav
+          mix={css({
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "8px",
+          })}
+        >
           <a
             href={backHref}
             mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}
           >
             ← Все категории
           </a>
+          <ShareSignOut />
         </nav>
         <section mix={css({ maxWidth: "720px", padding: "32px 0 24px" })}>
           <p mix={brandMark}>Категория</p>

@@ -3,7 +3,8 @@ import { css } from "remix/ui";
 import { Document } from "./document.tsx";
 import { shell, button, muted, brandMark, displayTitle } from "./styles.ts";
 
-export function HomePage(h: Handle<{ signedIn: boolean }>) {
+export function HomePage(h: Handle<{ signedIn: boolean; shareId: string | null }>) {
+  const { signedIn, shareId } = h.props;
   return () => (
     <Document title="Books Store">
       <main mix={shell}>
@@ -11,8 +12,8 @@ export function HomePage(h: Handle<{ signedIn: boolean }>) {
           <strong mix={css({ fontFamily: "Fraunces, Georgia, serif", fontSize: "22px" })}>
             Books Store
           </strong>
-          <a href={h.props.signedIn ? "/app" : "/login"} mix={button({ secondary: true })}>
-            {h.props.signedIn ? "Open dashboard" : "Sign in"}
+          <a href={signedIn ? "/app" : "/login"} mix={button({ secondary: true })}>
+            {signedIn ? "Open dashboard" : "Sign in"}
           </a>
         </nav>
         <section mix={css({ maxWidth: "640px", padding: "96px 0 120px" })}>
@@ -22,9 +23,22 @@ export function HomePage(h: Handle<{ signedIn: boolean }>) {
             Upload covers, add short notes, and send a link so others can browse — and mark when
             they have received each book.
           </p>
-          <a href={h.props.signedIn ? "/app" : "/login"} mix={button({})}>
-            {h.props.signedIn ? "Open your list →" : "Get started with a passkey →"}
-          </a>
+          {shareId && !signedIn ? (
+            <div mix={css({ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "8px" })}>
+              <a href={`/share/${shareId}`} mix={button({})}>
+                Continue shared list →
+              </a>
+              <form method="POST" action="/logout">
+                <button type="submit" mix={button({ secondary: true })}>
+                  Sign out
+                </button>
+              </form>
+            </div>
+          ) : (
+            <a href={signedIn ? "/app" : "/login"} mix={button({})}>
+              {signedIn ? "Open your list →" : "Get started with a passkey →"}
+            </a>
+          )}
         </section>
       </main>
     </Document>
