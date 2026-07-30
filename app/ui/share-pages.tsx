@@ -4,6 +4,7 @@ import type { Book } from "../data/books.ts";
 import type { Category, CategoryKind } from "../data/categories.ts";
 import { ConfirmDeleteForm } from "./confirm-delete-form.tsx";
 import { Document } from "./document.tsx";
+import { MarkReceivedForm } from "./mark-received-form.tsx";
 import { button, muted, shell, brandMark, displayTitle } from "./styles.ts";
 
 function formatReceivedRu(iso: string) {
@@ -11,6 +12,13 @@ function formatReceivedRu(iso: string) {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function categoryProgressRu(books: Book[], isSend: boolean): string | null {
+  if (books.length === 0) return null;
+  const received = books.filter((book) => book.receivedAt).length;
+  if (received === books.length) return isSend ? "Все отправлены" : "Все получены";
+  return isSend ? `${received}/${books.length} отправлено` : `${received}/${books.length} получено`;
 }
 
 function ShareSignOut(_h: Handle) {
@@ -171,6 +179,7 @@ export function ShareCategoryPage(
   const isSend = kind === "send" || category.kind === "send";
   const backHref = `/share/${shareId}?kind=${kind}`;
   const action = `/share/${shareId}/categories/${category.id}?kind=${kind}`;
+  const progress = categoryProgressRu(books, isSend);
   return () => (
     <Document title={`${category.name} · Books Store`} lang="ru">
       <main mix={shell}>
@@ -196,6 +205,17 @@ export function ShareCategoryPage(
           <h1 mix={displayTitle}>{category.name}</h1>
           {category.description ? (
             <p mix={css({ ...muted, whiteSpace: "pre-wrap" })}>{category.description}</p>
+          ) : null}
+          {progress ? (
+            <p
+              mix={css({
+                color: progress.startsWith("Все") ? "#b8d4a8" : "#c4b5a0",
+                fontWeight: 700,
+                margin: "12px 0 0",
+              })}
+            >
+              {progress}
+            </p>
           ) : null}
           {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
           {notice ? <p mix={css({ color: "#b8d4a8" })}>{notice}</p> : null}
@@ -263,17 +283,18 @@ export function ShareCategoryPage(
                       />
                     </div>
                   ) : (
-                    <form method="POST" action={action}>
-                      <input type="hidden" name="intent" value="mark-received" />
-                      <input type="hidden" name="bookId" value={book.id} />
-                      <button type="submit" mix={button()}>
-                        {isSend
+                    <MarkReceivedForm
+                      action={action}
+                      bookId={book.id}
+                      label={
+                        isSend
                           ? "Я отправил(а) эту книгу"
                           : book.twoCopies
                             ? "Я получила книги --- 2 штуки"
-                            : "Я получил(а) эту книгу"}
-                      </button>
-                    </form>
+                            : "Я получил(а) эту книгу"
+                      }
+                      allDoneMessage={isSend ? "Все книги отправлены" : "Все книги получены"}
+                    />
                   )}
                 </div>
               </li>
