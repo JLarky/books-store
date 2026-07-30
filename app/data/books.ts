@@ -10,12 +10,17 @@ export type Book = {
   categoryIds: string[];
   contentType: string;
   chunkCount: number;
+  imageByteLength: number | null;
   createdAt: string;
   receivedAt: string | null;
 };
 
 function normalizeBook(book: Book): Book {
-  return { ...book, categoryIds: book.categoryIds ?? [] };
+  return {
+    ...book,
+    categoryIds: book.categoryIds ?? [],
+    imageByteLength: book.imageByteLength ?? null,
+  };
 }
 
 export type ShareInvite = {
@@ -123,6 +128,7 @@ export async function createBook(args: {
     categoryIds: uniqueIds(args.categoryIds ?? []),
     contentType: args.contentType,
     chunkCount: chunks.length,
+    imageByteLength: args.bytes.byteLength,
     createdAt: new Date().toISOString(),
     receivedAt: null,
   };
@@ -177,6 +183,7 @@ export async function updateBook(
       ...next,
       contentType: args.image.contentType,
       chunkCount: chunks.length,
+      imageByteLength: args.image.bytes.byteLength,
     };
   }
 

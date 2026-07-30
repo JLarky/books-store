@@ -118,6 +118,12 @@ function formatReceived(iso: string, locale?: string) {
   });
 }
 
+function formatImageKb(byteLength: number) {
+  const kb = byteLength / 1024;
+  const rounded = kb >= 10 ? Math.round(kb) : Math.round(kb * 10) / 10;
+  return `${rounded} KB`;
+}
+
 export function OwnerBookList(
   h: Handle<{
     books: Book[];
@@ -172,6 +178,11 @@ export function OwnerBookList(
             />
             <div>
               <p mix={css({ margin: "0 0 12px", whiteSpace: "pre-wrap" })}>{book.description}</p>
+              <p mix={css({ ...muted, margin: "0 0 12px", fontSize: "14px" })}>
+                {book.imageByteLength != null
+                  ? `Image ${formatImageKb(book.imageByteLength)}`
+                  : "Image size unknown"}
+              </p>
               <p mix={css({ ...muted, margin: "0 0 12px", fontSize: "14px" })}>
                 {book.categoryIds.length === 0
                   ? "No categories"

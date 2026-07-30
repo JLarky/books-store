@@ -62,6 +62,7 @@ void test("books can belong to categories and be marked received", async () => {
     assert.equal(created.ok, true);
     if (!created.ok) return;
     assert.deepEqual(created.book.categoryIds, [category.category.id]);
+    assert.equal(created.book.imageByteLength, fakePng(120, 160).byteLength);
 
     const oversized = await createBook({
       ownerId: user.id,
