@@ -15,12 +15,11 @@ export function DashboardPage(
     books: Book[];
     categories: Category[];
     shareInvites: ShareInvite[];
-    backupJson: string;
     error: string | null;
     notice: string | null;
   }>,
 ) {
-  const { books, categories, shareInvites, backupJson, error, notice } = h.props;
+  const { books, categories, shareInvites, error, notice } = h.props;
   return () => (
     <Document title="Dashboard · Books Store">
       <main mix={shell}>
@@ -39,6 +38,9 @@ export function DashboardPage(
           <div mix={css({ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" })}>
             <a href="/app/categories" mix={button({ secondary: true })}>
               Categories
+            </a>
+            <a href="/app/backup" mix={button({ secondary: true })}>
+              Backup
             </a>
             <a href="/account" mix={button({ secondary: true })}>
               Account
@@ -136,7 +138,25 @@ export function DashboardPage(
             ) : null}
           </>,
         )}
+      </main>
+    </Document>
+  );
+}
 
+export function BackupPage(
+  h: Handle<{
+    backupJson: string;
+  }>,
+) {
+  const { backupJson } = h.props;
+  return () => (
+    <Document title="Backup · Books Store">
+      <main mix={shell}>
+        <nav mix={css({ display: "flex", justifyContent: "space-between", alignItems: "center" })}>
+          <a href="/app" mix={css({ color: "#c4b5a0", textDecoration: "none", fontWeight: 700 })}>
+            ← Dashboard
+          </a>
+        </nav>
         <JsonBackup jsonContent={backupJson} />
       </main>
     </Document>

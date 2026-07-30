@@ -7,6 +7,7 @@ export const routes = route({
   app: "/app",
   categories: "/app/categories",
   category: "/app/categories/:categoryId",
+  backup: "/app/backup",
   account: "/account",
   invite: "/invite/:inviteId",
   share: "/share/:shareId",
