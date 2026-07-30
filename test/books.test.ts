@@ -81,7 +81,7 @@ void test("books can belong to categories and be marked received", async () => {
       ownerId: user.id,
       description: "Too big",
       contentType: "image/png",
-      bytes: fakePng(301, 100),
+      bytes: fakePng(601, 100),
     });
     assert.equal(oversized.ok, false);
 
