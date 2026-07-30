@@ -161,12 +161,16 @@ export const BookImageFields = clientEntry(
             src={previewUrl}
             alt=""
             mix={css({
-              width: "120px",
-              maxHeight: "160px",
+              width: "180px",
+              maxHeight: "240px",
               objectFit: "contain",
               borderRadius: "10px",
               background: "#141210",
               border: "1px solid #4a4036",
+              "@media (max-width: 560px)": {
+                width: "120px",
+                maxHeight: "160px",
+              },
             })}
           />
         ) : null}
