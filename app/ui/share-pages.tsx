@@ -78,12 +78,13 @@ export function ShareCategoriesPage(
   h: Handle<{
     shareId: string;
     kind: CategoryKind;
-    categories: Category[];
+    categories: Array<{ category: Category; books: Book[] }>;
     error: string | null;
   }>,
 ) {
   const { shareId, kind, categories, error } = h.props;
-  const title = kind === "send" ? "Категории для отправки" : "Категории для получения";
+  const isSend = kind === "send";
+  const title = isSend ? "Категории для отправки" : "Категории для получения";
   return () => (
     <Document title={`${title} · Books Store`} lang="ru">
       <main mix={shell}>
@@ -109,7 +110,7 @@ export function ShareCategoriesPage(
           <h1 mix={displayTitle}>{title}</h1>
           <p mix={css(muted)}>
             Выберите категорию, чтобы посмотреть книги. Вы можете отметить, что книгу уже{" "}
-            {kind === "send" ? "отправили" : "получили"}. Добавлять и редактировать книги нельзя.
+            {isSend ? "отправили" : "получили"}. Добавлять и редактировать книги нельзя.
           </p>
           {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
         </section>
@@ -127,40 +128,55 @@ export function ShareCategoriesPage(
               gap: "16px",
             })}
           >
-            {categories.map((category) => (
-              <li key={category.id}>
-                <a
-                  href={`/share/${shareId}/categories/${category.id}?kind=${kind}`}
-                  mix={css({
-                    display: "block",
-                    padding: "18px",
-                    background: "#261f1a",
-                    border: "1px solid #4a4036",
-                    borderRadius: "18px",
-                    color: "#f5f0e8",
-                    textDecoration: "none",
-                  })}
-                >
-                  <strong
+            {categories.map(({ category, books }) => {
+              const progress = categoryProgressRu(books, isSend);
+              return (
+                <li key={category.id}>
+                  <a
+                    href={`/share/${shareId}/categories/${category.id}?kind=${kind}`}
                     mix={css({
                       display: "block",
-                      fontFamily: "Fraunces, Georgia, serif",
-                      fontSize: "22px",
-                      marginBottom: "6px",
+                      padding: "18px",
+                      background: "#261f1a",
+                      border: "1px solid #4a4036",
+                      borderRadius: "18px",
+                      color: "#f5f0e8",
+                      textDecoration: "none",
                     })}
                   >
-                    {category.name}
-                  </strong>
-                  {category.description ? (
-                    <span mix={css({ ...muted, whiteSpace: "pre-wrap" })}>
-                      {category.description}
-                    </span>
-                  ) : (
-                    <span mix={css(muted)}>Без описания</span>
-                  )}
-                </a>
-              </li>
-            ))}
+                    <strong
+                      mix={css({
+                        display: "block",
+                        fontFamily: "Fraunces, Georgia, serif",
+                        fontSize: "22px",
+                        marginBottom: "6px",
+                      })}
+                    >
+                      {category.name}
+                    </strong>
+                    {progress ? (
+                      <span
+                        mix={css({
+                          display: "block",
+                          color: progress.startsWith("Все") ? "#b8d4a8" : "#c4b5a0",
+                          fontWeight: 700,
+                          marginBottom: "8px",
+                        })}
+                      >
+                        {progress}
+                      </span>
+                    ) : null}
+                    {category.description ? (
+                      <span mix={css({ ...muted, whiteSpace: "pre-wrap" })}>
+                        {category.description}
+                      </span>
+                    ) : (
+                      <span mix={css(muted)}>Без описания</span>
+                    )}
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         )}
       </main>

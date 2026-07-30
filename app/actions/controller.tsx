@@ -159,6 +159,16 @@ async function categoriesView(
   };
 }
 
+async function shareCategoriesWithBooks(ownerId: string, kind: CategoryKind) {
+  const categories = await listCategoriesForOwner(ownerId, kind);
+  return Promise.all(
+    categories.map(async (category) => ({
+      category,
+      books: await listBooksInCategory(ownerId, category.id),
+    })),
+  );
+}
+
 async function categoryDetailView(
   ownerId: string,
   categoryId: string,
@@ -537,7 +547,7 @@ export default createController(routes, {
       bindShareSession(c.session, c.request, id);
       const kind = parseCategoryKind(new URL(c.request.url).searchParams.get("kind"));
       if (!kind) return c.render(<ShareFlowChooserPage shareId={id} error={null} />);
-      const categories = await listCategoriesForOwner(invite.ownerId, kind);
+      const categories = await shareCategoriesWithBooks(invite.ownerId, kind);
       return c.render(
         <ShareCategoriesPage shareId={id} kind={kind} categories={categories} error={null} />,
       );
@@ -558,7 +568,7 @@ export default createController(routes, {
           <ShareCategoriesPage
             shareId={id}
             kind={kind}
-            categories={await listCategoriesForOwner(invite.ownerId, kind)}
+            categories={await shareCategoriesWithBooks(invite.ownerId, kind)}
             error="Категория не найдена"
           />,
           { status: 404 },
