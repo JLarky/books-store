@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import {
+  categoryCopyProgress,
   createBook,
   createShareInvite,
   getShareInvite,
@@ -87,6 +88,11 @@ void test("books can belong to categories and be marked received", async () => {
 
     const inCategory = await listBooksInCategory(user.id, category.category.id);
     assert.equal(inCategory.length, 2);
+    assert.deepEqual(categoryCopyProgress(inCategory), {
+      receivedCount: 0,
+      totalCount: 3,
+      allReceived: false,
+    });
 
     const share = await createShareInvite(user.id);
     assert.ok(share);
@@ -96,11 +102,38 @@ void test("books can belong to categories and be marked received", async () => {
     assert.equal(received.ok, true);
     if (!received.ok) return;
     assert.ok(received.book.receivedAt);
+    assert.deepEqual(
+      categoryCopyProgress(await listBooksInCategory(user.id, category.category.id)),
+      {
+        receivedCount: 1,
+        totalCount: 3,
+        allReceived: false,
+      },
+    );
+
+    const receivedPair = await markBookReceived(twoCopies.book.id, user.id);
+    assert.equal(receivedPair.ok, true);
+    assert.deepEqual(
+      categoryCopyProgress(await listBooksInCategory(user.id, category.category.id)),
+      {
+        receivedCount: 3,
+        totalCount: 3,
+        allReceived: true,
+      },
+    );
 
     const unmarked = await unmarkBookReceived(created.book.id, user.id);
     assert.equal(unmarked.ok, true);
     if (!unmarked.ok) return;
     assert.equal(unmarked.book.receivedAt, null);
+    assert.deepEqual(
+      categoryCopyProgress(await listBooksInCategory(user.id, category.category.id)),
+      {
+        receivedCount: 2,
+        totalCount: 3,
+        allReceived: false,
+      },
+    );
   } finally {
     delete process.env.BOOKS_STORE_DATA_PATH;
     await rm(dir, { recursive: true, force: true });

@@ -1,6 +1,7 @@
 import type { Handle } from "remix/ui";
 import { css } from "remix/ui";
 import type { Book } from "../data/books.ts";
+import { categoryCopyProgress } from "../data/books.ts";
 import type { Category, CategoryKind } from "../data/categories.ts";
 import { ConfirmDeleteForm } from "./confirm-delete-form.tsx";
 import { Document } from "./document.tsx";
@@ -15,10 +16,12 @@ function formatReceivedRu(iso: string) {
 }
 
 function categoryProgressRu(books: Book[], isSend: boolean): string | null {
-  if (books.length === 0) return null;
-  const received = books.filter((book) => book.receivedAt).length;
-  if (received === books.length) return isSend ? "Все отправлены" : "Все получены";
-  return isSend ? `${received}/${books.length} отправлено` : `${received}/${books.length} получено`;
+  const { receivedCount, totalCount, allReceived } = categoryCopyProgress(books);
+  if (totalCount === 0) return null;
+  if (allReceived) return isSend ? "Все отправлены" : "Все получены";
+  return isSend
+    ? `${receivedCount}/${totalCount} отправлено`
+    : `${receivedCount}/${totalCount} получено`;
 }
 
 function ShareSignOut(_h: Handle) {

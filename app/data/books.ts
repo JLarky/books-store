@@ -25,6 +25,31 @@ function normalizeBook(book: Book): Book {
   };
 }
 
+/** How many physical copies a book entry represents. */
+export function bookCopyCount(book: Pick<Book, "twoCopies">): number {
+  return book.twoCopies ? 2 : 1;
+}
+
+/** Progress over copies (twoCopies books count as 2). */
+export function categoryCopyProgress(books: Pick<Book, "twoCopies" | "receivedAt">[]): {
+  receivedCount: number;
+  totalCount: number;
+  allReceived: boolean;
+} {
+  let receivedCount = 0;
+  let totalCount = 0;
+  for (const book of books) {
+    const copies = bookCopyCount(book);
+    totalCount += copies;
+    if (book.receivedAt) receivedCount += copies;
+  }
+  return {
+    receivedCount,
+    totalCount,
+    allReceived: totalCount > 0 && receivedCount === totalCount,
+  };
+}
+
 export type ShareInvite = {
   id: string;
   ownerId: string;
