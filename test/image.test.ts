@@ -89,8 +89,9 @@ void test("fitImageSize scales down while preserving aspect ratio", () => {
   assert.deepEqual(fitImageSize(601, 100), { width: 600, height: 100 });
 });
 
-void test("image edge ladder starts at max edge and targets 15 KB", () => {
+void test("image edge ladder starts at max edge and targets 40 KB", () => {
   assert.equal(IMAGE_EDGE_LADDER[0], MAX_IMAGE_EDGE);
-  assert.equal(TARGET_IMAGE_BYTES, 15_000);
+  assert.equal(TARGET_IMAGE_BYTES, 40_000);
+  assert.deepEqual([...IMAGE_EDGE_LADDER], [600, 540, 480, 400, 300, 240, 180, 120]);
   assert.ok(IMAGE_EDGE_LADDER.every((edge, i, all) => i === 0 || edge < all[i - 1]!));
 });

@@ -2,13 +2,13 @@
 export const MAX_IMAGE_EDGE = 600;
 
 /** Prefer covers at or under this byte size (client may shrink further to meet it). */
-export const TARGET_IMAGE_BYTES = 15_000;
+export const TARGET_IMAGE_BYTES = 40_000;
 
 /**
  * Client encode ladder: try largest edge first, then step down until the
  * chosen encoding fits {@link TARGET_IMAGE_BYTES} (or the floor is reached).
  */
-export const IMAGE_EDGE_LADDER = [600, 500, 400, 300, 240, 180, 120] as const;
+export const IMAGE_EDGE_LADDER = [600, 540, 480, 400, 300, 240, 180, 120] as const;
 
 export type ImageSize = { width: number; height: number };
 
