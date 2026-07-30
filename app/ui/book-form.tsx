@@ -6,6 +6,68 @@ import { BookImageFields } from "./book-image-fields.tsx";
 import { ConfirmDeleteForm } from "./confirm-delete-form.tsx";
 import { button, muted } from "./styles.ts";
 
+function categoryPicker(categories: Category[], selectedIds: string[]): RemixNode {
+  const selected = new Set(selectedIds);
+  const summary = categories.map((category) => category.name).join(" · ");
+
+  return (
+    <details
+      mix={css({
+        margin: 0,
+        padding: "12px 14px",
+        border: "1px solid #5c5348",
+        borderRadius: "12px",
+      })}
+    >
+      <summary
+        mix={css({
+          cursor: "pointer",
+          color: "#d8d0c4",
+          fontSize: "14px",
+          listStyle: "none",
+          "&::-webkit-details-marker": { display: "none" },
+          "&::before": {
+            content: '"▸ "',
+            display: "inline",
+          },
+          "details[open] > &::before": { content: '"▾ "' },
+        })}
+      >
+        {summary}
+      </summary>
+      <div
+        mix={css({
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          marginTop: "10px",
+        })}
+      >
+        {categories.map((category) => (
+          <label
+            key={category.id}
+            mix={css({
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: "9px",
+              fontSize: "14px",
+            })}
+          >
+            <input
+              type="checkbox"
+              name="categoryIds"
+              value={category.id}
+              checked={selected.has(category.id) ? true : undefined}
+            />
+            {category.name}
+          </label>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export function BookUploadForm(
   h: Handle<{
     action: string;
@@ -32,40 +94,7 @@ export function BookUploadForm(
       ) : null}
       <BookImageFields imageRequired />
       {choosable.length > 0 ? (
-        <fieldset
-          mix={css({
-            margin: 0,
-            padding: "12px 14px",
-            border: "1px solid #5c5348",
-            borderRadius: "12px",
-          })}
-        >
-          <legend mix={css({ padding: "0 6px", color: "#d8d0c4", fontSize: "14px" })}>
-            Categories
-          </legend>
-          <div mix={css({ display: "flex", flexDirection: "column", gap: "8px" })}>
-            {choosable.map((category) => (
-              <label
-                key={category.id}
-                mix={css({
-                  display: "flex",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: "9px",
-                  fontSize: "14px",
-                })}
-              >
-                <input
-                  type="checkbox"
-                  name="categoryIds"
-                  value={category.id}
-                  checked={selected.has(category.id) ? true : undefined}
-                />
-                {category.name}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        categoryPicker(choosable, [...selected])
       ) : lockedCategoryId ? (
         <p mix={css({ ...muted, margin: 0, fontSize: "14px" })}>
           This book will be added to the current category.
@@ -172,42 +201,9 @@ export function OwnerBookList(
                   description={book.description}
                   existingImageSrc={`/books/${book.id}/image`}
                 />
-                {categories.length > 0 ? (
-                  <fieldset
-                    mix={css({
-                      margin: 0,
-                      padding: "12px 14px",
-                      border: "1px solid #5c5348",
-                      borderRadius: "12px",
-                    })}
-                  >
-                    <legend mix={css({ padding: "0 6px", color: "#d8d0c4", fontSize: "14px" })}>
-                      Categories
-                    </legend>
-                    <div mix={css({ display: "flex", flexDirection: "column", gap: "8px" })}>
-                      {categories.map((category) => (
-                        <label
-                          key={category.id}
-                          mix={css({
-                            display: "flex",
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: "9px",
-                            fontSize: "14px",
-                          })}
-                        >
-                          <input
-                            type="checkbox"
-                            name="categoryIds"
-                            value={category.id}
-                            checked={book.categoryIds.includes(category.id) ? true : undefined}
-                          />
-                          {category.name}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                ) : null}
+                {categories.length > 0
+                  ? categoryPicker(categories, book.categoryIds)
+                  : null}
                 <button type="submit" mix={button({ secondary: true })}>
                   Save book
                 </button>
