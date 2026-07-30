@@ -1,5 +1,14 @@
 /** Max width or height allowed for book cover images. */
-export const MAX_IMAGE_EDGE = 300;
+export const MAX_IMAGE_EDGE = 600;
+
+/** Prefer covers at or under this byte size (client may shrink further to meet it). */
+export const TARGET_IMAGE_BYTES = 15_000;
+
+/**
+ * Client encode ladder: try largest edge first, then step down until the
+ * chosen encoding fits {@link TARGET_IMAGE_BYTES} (or the floor is reached).
+ */
+export const IMAGE_EDGE_LADDER = [600, 500, 400, 300, 240, 180, 120] as const;
 
 export type ImageSize = { width: number; height: number };
 
@@ -102,8 +111,82 @@ function webpSize(bytes: Uint8Array): ImageSize | null {
   return null;
 }
 
+function readFourCC(bytes: Uint8Array, offset: number): string {
+  return String.fromCharCode(
+    bytes[offset]!,
+    bytes[offset + 1]!,
+    bytes[offset + 2]!,
+    bytes[offset + 3]!,
+  );
+}
+
+function isAvifFtyp(bytes: Uint8Array): boolean {
+  if (bytes.length < 12 || readFourCC(bytes, 4) !== "ftyp") return false;
+  const size = readUInt32BE(bytes, 0);
+  const end = size === 0 ? bytes.length : Math.min(bytes.length, size);
+  for (let offset = 8; offset + 4 <= end; offset += 4) {
+    if (offset === 12) continue; // minor_version
+    const brand = readFourCC(bytes, offset);
+    if (brand === "avif" || brand === "avis" || brand === "MA1B" || brand === "MA1A") return true;
+  }
+  return false;
+}
+
+/** Walk ISO-BMFF boxes; AVIF stores width/height in an `ispe` fullbox. */
+function findIspeSize(bytes: Uint8Array, start: number, end: number): ImageSize | null {
+  let offset = start;
+  while (offset + 8 <= end) {
+    const sizeField = readUInt32BE(bytes, offset);
+    const type = readFourCC(bytes, offset + 4);
+    let header = 8;
+    let boxEnd: number;
+    if (sizeField === 1) {
+      if (offset + 16 > end) return null;
+      const large =
+        readUInt32BE(bytes, offset + 8) * 0x100000000 + readUInt32BE(bytes, offset + 12);
+      header = 16;
+      boxEnd = offset + large;
+    } else if (sizeField === 0) {
+      boxEnd = end;
+    } else {
+      boxEnd = offset + sizeField;
+    }
+    if (boxEnd > end || boxEnd < offset + header) return null;
+
+    if (type === "ispe" && offset + header + 12 <= boxEnd) {
+      // FullBox: version(1) + flags(3), then width/height uint32
+      return {
+        width: readUInt32BE(bytes, offset + header + 4),
+        height: readUInt32BE(bytes, offset + header + 8),
+      };
+    }
+
+    // Containers that may nest ispe (meta/iref are FullBoxes)
+    const nestedStart = type === "meta" || type === "iref" ? offset + header + 4 : offset + header;
+    if (
+      type === "meta" ||
+      type === "iprp" ||
+      type === "ipco" ||
+      type === "moov" ||
+      type === "mdia" ||
+      type === "minf"
+    ) {
+      const found = findIspeSize(bytes, nestedStart, boxEnd);
+      if (found) return found;
+    }
+
+    offset = boxEnd;
+  }
+  return null;
+}
+
+function avifSize(bytes: Uint8Array): ImageSize | null {
+  if (!isAvifFtyp(bytes)) return null;
+  return findIspeSize(bytes, 0, bytes.length);
+}
+
 export function getImageDimensions(bytes: Uint8Array): ImageSize | null {
-  return pngSize(bytes) ?? jpegSize(bytes) ?? gifSize(bytes) ?? webpSize(bytes);
+  return pngSize(bytes) ?? jpegSize(bytes) ?? gifSize(bytes) ?? webpSize(bytes) ?? avifSize(bytes);
 }
 
 /** Scale down so neither edge exceeds `maxEdge`, preserving aspect ratio. */

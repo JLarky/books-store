@@ -1,6 +1,27 @@
 import { clientEntry, css, on, type Handle } from "remix/ui";
-import { fitImageSize, MAX_IMAGE_EDGE } from "../utils/image.ts";
+import {
+  fitImageSize,
+  IMAGE_EDGE_LADDER,
+  MAX_IMAGE_EDGE,
+  TARGET_IMAGE_BYTES,
+} from "../utils/image.ts";
 import { muted } from "./styles.ts";
+
+/** Lossy quality per format — codecs don't treat the same number equally. */
+const WEBP_JPEG_QUALITY = 0.82;
+
+type EncodeCandidate = {
+  type: string;
+  extension: string;
+  quality?: number;
+  /** JPEG has no alpha; draw over an opaque fill before encoding. */
+  opaqueBackground?: string;
+};
+
+const ENCODE_CANDIDATES: EncodeCandidate[] = [
+  { type: "image/webp", extension: "webp", quality: WEBP_JPEG_QUALITY },
+  { type: "image/jpeg", extension: "jpg", quality: WEBP_JPEG_QUALITY, opaqueBackground: "#ffffff" },
+];
 
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -18,56 +39,186 @@ function loadImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-function outputType(file: File): { type: string; quality?: number; extension: string } {
-  if (file.type === "image/jpeg") return { type: "image/jpeg", quality: 0.92, extension: "jpg" };
-  if (file.type === "image/webp") return { type: "image/webp", quality: 0.92, extension: "webp" };
-  return { type: "image/png", extension: "png" };
-}
-
 function renamedFile(original: string, extension: string): string {
   const base = original.replace(/\.[^.]+$/, "") || "cover";
   return `${base}.${extension}`;
 }
 
-async function resizeImageToFit(file: File): Promise<{
-  file: File;
-  original: { width: number; height: number };
-  size: { width: number; height: number };
-  resized: boolean;
-}> {
-  const image = await loadImage(file);
-  const original = { width: image.naturalWidth, height: image.naturalHeight };
-  const size = fitImageSize(original.width, original.height);
-  if (size.width === original.width && size.height === original.height) {
-    return { file, original, size, resized: false };
-  }
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality?: number,
+): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((result) => resolve(result), type, quality);
+  });
+}
 
+function drawCover(
+  image: HTMLImageElement,
+  size: { width: number; height: number },
+  opaqueBackground?: string,
+): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = size.width;
   canvas.height = size.height;
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("Could not resize image");
+  if (!context) throw new Error("Could not prepare image");
+  if (opaqueBackground) {
+    context.fillStyle = opaqueBackground;
+    context.fillRect(0, 0, size.width, size.height);
+  }
   context.drawImage(image, 0, 0, size.width, size.height);
+  return canvas;
+}
 
-  const { type, quality, extension } = outputType(file);
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (result) => {
-        if (result) resolve(result);
-        else reject(new Error("Could not resize image"));
-      },
-      type,
-      quality,
-    );
-  });
+function extensionForType(type: string): string {
+  if (type === "image/jpeg") return "jpg";
+  if (type === "image/webp") return "webp";
+  return "bin";
+}
+
+function formatKb(bytes: number): string {
+  return `${(bytes / 1024).toFixed(bytes >= 10240 ? 0 : 1)} KB`;
+}
+
+type SizeRow = {
+  label: string;
+  bytes: number | null;
+  selected: boolean;
+};
+
+type Contestant = {
+  blob: Blob;
+  type: string;
+  extension: string;
+  rowLabel: string;
+  width: number;
+  height: number;
+};
+
+async function encodeAtSize(
+  image: HTMLImageElement,
+  size: { width: number; height: number },
+  edgeLabel: number,
+): Promise<{ encoded: { extension: string; blob: Blob | null }[]; contestants: Contestant[] }> {
+  const encoded = await Promise.all(
+    ENCODE_CANDIDATES.map(async (candidate) => {
+      const canvas = drawCover(image, size, candidate.opaqueBackground);
+      const blob = await canvasToBlob(canvas, candidate.type, candidate.quality);
+      // Unsupported types silently fall back to PNG — reject those.
+      if (!blob || blob.size === 0 || blob.type !== candidate.type) {
+        return { extension: candidate.extension, blob: null as Blob | null, candidate };
+      }
+      return { extension: candidate.extension, blob, candidate };
+    }),
+  );
+
+  const contestants: Contestant[] = [];
+  for (const entry of encoded) {
+    if (!entry.blob) continue;
+    contestants.push({
+      blob: entry.blob,
+      type: entry.candidate.type,
+      extension: entry.extension,
+      rowLabel: `${entry.extension}@${edgeLabel}`,
+      width: size.width,
+      height: size.height,
+    });
+  }
 
   return {
-    file: new File([blob], renamedFile(file.name || "cover", extension), {
-      type: blob.type || type,
+    encoded: encoded.map(({ extension, blob }) => ({ extension, blob })),
+    contestants,
+  };
+}
+
+async function prepareCoverImage(file: File): Promise<{
+  file: File;
+  original: { width: number; height: number };
+  size: { width: number; height: number };
+  resized: boolean;
+  winnerLabel: string;
+  underBudget: boolean;
+  sizeRows: SizeRow[];
+}> {
+  const image = await loadImage(file);
+  const original = { width: image.naturalWidth, height: image.naturalHeight };
+  const originalRowLabel = `original (${extensionForType(file.type) || "image"})`;
+
+  const sizeRows: SizeRow[] = [{ label: originalRowLabel, bytes: file.size, selected: false }];
+
+  let winner: Contestant | null = null;
+  let lastSizeKey = "";
+
+  for (const maxEdge of IMAGE_EDGE_LADDER) {
+    const size = fitImageSize(original.width, original.height, maxEdge);
+    const sizeKey = `${size.width}x${size.height}`;
+    if (sizeKey === lastSizeKey) continue;
+    lastSizeKey = sizeKey;
+
+    const { encoded, contestants } = await encodeAtSize(image, size, maxEdge);
+
+    const fitsNative = size.width === original.width && size.height === original.height;
+    if (fitsNative && file.size > 0 && file.type.startsWith("image/")) {
+      contestants.push({
+        blob: file,
+        type: file.type,
+        extension: extensionForType(file.type),
+        rowLabel: originalRowLabel,
+        width: size.width,
+        height: size.height,
+      });
+    }
+
+    if (contestants.length === 0) continue;
+
+    contestants.sort((a, b) => a.blob.size - b.blob.size);
+    const bestAtScale = contestants[0]!;
+
+    for (const entry of encoded) {
+      sizeRows.push({
+        label: `${entry.extension}@${maxEdge}`,
+        bytes: entry.blob?.size ?? null,
+        selected: false,
+      });
+    }
+
+    // Prefer the largest scale that still fits the byte budget.
+    if (bestAtScale.blob.size <= TARGET_IMAGE_BYTES) {
+      winner = bestAtScale;
+      break;
+    }
+
+    // Remember the overall smallest in case nothing hits the budget.
+    if (!winner || bestAtScale.blob.size < winner.blob.size) {
+      winner = bestAtScale;
+    }
+  }
+
+  if (!winner) throw new Error("Could not encode image");
+
+  for (const row of sizeRows) {
+    row.selected = row.label === winner.rowLabel && row.bytes === winner.blob.size;
+  }
+  if (!sizeRows.some((row) => row.selected)) {
+    const match = sizeRows.find((row) => row.bytes === winner!.blob.size);
+    if (match) match.selected = true;
+  }
+
+  const resized = winner.width !== original.width || winner.height !== original.height;
+  const underBudget = winner.blob.size <= TARGET_IMAGE_BYTES;
+
+  return {
+    file: new File([winner.blob], renamedFile(file.name || "cover", winner.extension), {
+      type: winner.type,
     }),
     original,
-    size,
-    resized: true,
+    size: { width: winner.width, height: winner.height },
+    resized,
+    winnerLabel: `${winner.extension} ${winner.width}×${winner.height}, ${formatKb(winner.blob.size)}`,
+    underBudget,
+    sizeRows,
   };
 }
 
@@ -89,6 +240,7 @@ export const BookImageFields = clientEntry(
     let previewUrl = h.props.existingImageSrc ?? null;
     let objectUrl: string | null = null;
     let message: string | null = null;
+    let sizeRows: SizeRow[] | null = null;
     let messageKind: "error" | "notice" = "notice";
 
     function setPreview(file: File) {
@@ -99,22 +251,27 @@ export const BookImageFields = clientEntry(
 
     async function acceptImage(file: File, input: HTMLInputElement | null, fromPaste: boolean) {
       try {
-        const result = await resizeImageToFit(file);
+        const result = await prepareCoverImage(file);
         if (input) assignFile(input, result.file);
         setPreview(result.file);
         messageKind = "notice";
+        sizeRows = result.sizeRows;
+        const budgetNote = result.underBudget
+          ? ""
+          : ` Still over ${formatKb(TARGET_IMAGE_BYTES)} after shrinking.`;
         if (result.resized) {
-          message = `Cover resized from ${result.original.width}×${result.original.height} to ${result.size.width}×${result.size.height}.`;
+          message = `Cover resized from ${result.original.width}×${result.original.height} to ${result.size.width}×${result.size.height}. Storing ${result.winnerLabel}.${budgetNote}`;
         } else if (fromPaste) {
-          message = `Cover set from pasted image (${result.size.width}×${result.size.height}).`;
+          message = `Cover set from pasted image (${result.size.width}×${result.size.height}). Storing ${result.winnerLabel}.${budgetNote}`;
         } else {
-          message = null;
+          message = `Cover optimized. Storing ${result.winnerLabel}.${budgetNote}`;
         }
         void h.update();
       } catch {
         if (input && !fromPaste) input.value = "";
         messageKind = "error";
         message = "Could not read that image.";
+        sizeRows = null;
         if (!fromPaste) previewUrl = h.props.existingImageSrc ?? null;
         void h.update();
       }
@@ -185,19 +342,53 @@ export const BookImageFields = clientEntry(
           />
         </label>
         <p mix={css({ ...muted, margin: 0, fontSize: "13px" })}>
-          Paste an image into the description field to use it as the cover. Images larger than{" "}
-          {MAX_IMAGE_EDGE}×{MAX_IMAGE_EDGE} px are resized to fit.
+          Paste an image into the description field to use it as the cover. Starts at up to{" "}
+          {MAX_IMAGE_EDGE}×{MAX_IMAGE_EDGE} px, then steps down scales/formats to aim for{" "}
+          {formatKb(TARGET_IMAGE_BYTES)} or less.
         </p>
         {message ? (
-          <p
-            mix={css({
-              margin: 0,
-              fontSize: "14px",
-              color: messageKind === "error" ? "#ffb4a8" : "#b8d4a8",
-            })}
-          >
-            {message}
-          </p>
+          <div mix={css({ display: "flex", flexDirection: "column", gap: "6px" })}>
+            <p
+              mix={css({
+                margin: 0,
+                fontSize: "14px",
+                color: messageKind === "error" ? "#ffb4a8" : "#b8d4a8",
+              })}
+            >
+              {message}
+            </p>
+            {sizeRows && messageKind === "notice" ? (
+              <ul
+                mix={css({
+                  margin: 0,
+                  padding: 0,
+                  listStyle: "none",
+                  fontSize: "13px",
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                  color: "#c4b8a8",
+                  display: "grid",
+                  gridTemplateColumns: "auto auto auto",
+                  columnGap: "12px",
+                  rowGap: "2px",
+                  justifyContent: "start",
+                })}
+              >
+                {sizeRows.map((row) => (
+                  <li
+                    key={row.label}
+                    mix={css({
+                      display: "contents",
+                      color: row.selected ? "#b8d4a8" : row.bytes == null ? "#7a7064" : undefined,
+                    })}
+                  >
+                    <span>{row.label}</span>
+                    <span>{row.bytes == null ? "unsupported" : formatKb(row.bytes)}</span>
+                    <span>{row.selected ? "← stored" : ""}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : null}
       </div>
     );
