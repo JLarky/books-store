@@ -4,6 +4,7 @@ import type { Book, ShareInvite } from "../data/books.ts";
 import type { Category } from "../data/categories.ts";
 import type { DeviceInvite, User } from "../data/users.ts";
 import { BookUploadForm, OwnerBookList, panel } from "./book-form.tsx";
+import { ConfirmDeleteForm } from "./confirm-delete-form.tsx";
 import { Document } from "./document.tsx";
 import { button, muted, shell, brandMark, displayTitle } from "./styles.ts";
 
@@ -256,13 +257,12 @@ export function CategoriesPage(
                       </a>
                     </div>
                   </form>
-                  <form method="POST" action="/app/categories" mix={css({ marginTop: "8px" })}>
-                    <input type="hidden" name="intent" value="delete-category" />
-                    <input type="hidden" name="categoryId" value={category.id} />
-                    <button type="submit" mix={button({ secondary: true })}>
-                      Delete category
-                    </button>
-                  </form>
+                  <ConfirmDeleteForm
+                    action="/app/categories"
+                    message="Delete this category?"
+                    label="Delete category"
+                    fields={{ intent: "delete-category", categoryId: category.id }}
+                  />
                 </li>
               ))}
             </ul>
