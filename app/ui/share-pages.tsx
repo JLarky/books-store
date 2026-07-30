@@ -243,6 +243,9 @@ export function ShareCategoryPage(
                   <p mix={css({ margin: "0 0 12px", whiteSpace: "pre-wrap" })}>
                     {book.description}
                   </p>
+                  {book.twoCopies ? (
+                    <p mix={css({ ...muted, margin: "0 0 12px", fontSize: "14px" })}>2 штуки</p>
+                  ) : null}
                   {book.receivedAt ? (
                     <div>
                       <p mix={css({ color: "#b8d4a8", margin: 0 })}>
@@ -264,7 +267,11 @@ export function ShareCategoryPage(
                       <input type="hidden" name="intent" value="mark-received" />
                       <input type="hidden" name="bookId" value={book.id} />
                       <button type="submit" mix={button()}>
-                        {isSend ? "Я отправил(а) эту книгу" : "Я получил(а) эту книгу"}
+                        {isSend
+                          ? "Я отправил(а) эту книгу"
+                          : book.twoCopies
+                            ? "Я получила книги --- 2 штуки"
+                            : "Я получил(а) эту книгу"}
                       </button>
                     </form>
                   )}

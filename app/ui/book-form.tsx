@@ -93,6 +93,17 @@ export function BookUploadForm(
         <input type="hidden" name="categoryIds" value={lockedCategoryId} />
       ) : null}
       <BookImageFields imageRequired />
+      <label
+        mix={css({
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: "9px",
+          fontSize: "14px",
+        })}
+      >
+        <input type="checkbox" name="twoCopies" value="1" />2 штуки
+      </label>
       {choosable.length > 0 ? (
         categoryPicker(choosable, [...selected])
       ) : lockedCategoryId ? (
@@ -178,6 +189,9 @@ export function OwnerBookList(
             />
             <div>
               <p mix={css({ margin: "0 0 12px", whiteSpace: "pre-wrap" })}>{book.description}</p>
+              {book.twoCopies ? (
+                <p mix={css({ ...muted, margin: "0 0 12px", fontSize: "14px" })}>2 штуки</p>
+              ) : null}
               <p mix={css({ ...muted, margin: "0 0 12px", fontSize: "14px" })}>
                 {book.imageByteLength != null
                   ? `Image ${formatImageKb(book.imageByteLength)}`
@@ -212,6 +226,23 @@ export function OwnerBookList(
                   description={book.description}
                   existingImageSrc={`/books/${book.id}/image`}
                 />
+                <label
+                  mix={css({
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: "9px",
+                    fontSize: "14px",
+                  })}
+                >
+                  <input
+                    type="checkbox"
+                    name="twoCopies"
+                    value="1"
+                    checked={book.twoCopies ? true : undefined}
+                  />
+                  2 штуки
+                </label>
                 {categories.length > 0 ? categoryPicker(categories, book.categoryIds) : null}
                 <button type="submit" mix={button({ secondary: true })}>
                   Save book

@@ -6,6 +6,7 @@ export type BooksBackupBook = {
   description: string;
   categoryIds: string[];
   contentType: string;
+  twoCopies: boolean;
   createdAt: string;
   receivedAt: string | null;
   imageBase64: string;
@@ -39,6 +40,7 @@ export async function buildOwnerBackup(ownerId: string): Promise<BooksBackup> {
       description: book.description,
       categoryIds: [...book.categoryIds],
       contentType: book.contentType,
+      twoCopies: book.twoCopies,
       createdAt: book.createdAt,
       receivedAt: book.receivedAt,
       imageBase64: image ? Buffer.from(image.bytes).toString("base64") : "",

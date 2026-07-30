@@ -63,6 +63,19 @@ void test("books can belong to categories and be marked received", async () => {
     if (!created.ok) return;
     assert.deepEqual(created.book.categoryIds, [category.category.id]);
     assert.equal(created.book.imageByteLength, fakePng(120, 160).byteLength);
+    assert.equal(created.book.twoCopies, false);
+
+    const twoCopies = await createBook({
+      ownerId: user.id,
+      description: "Two copies",
+      categoryIds: [category.category.id],
+      contentType: "image/png",
+      bytes: fakePng(120, 160),
+      twoCopies: true,
+    });
+    assert.equal(twoCopies.ok, true);
+    if (!twoCopies.ok) return;
+    assert.equal(twoCopies.book.twoCopies, true);
 
     const oversized = await createBook({
       ownerId: user.id,
@@ -73,7 +86,7 @@ void test("books can belong to categories and be marked received", async () => {
     assert.equal(oversized.ok, false);
 
     const inCategory = await listBooksInCategory(user.id, category.category.id);
-    assert.equal(inCategory.length, 1);
+    assert.equal(inCategory.length, 2);
 
     const share = await createShareInvite(user.id);
     assert.ok(share);
