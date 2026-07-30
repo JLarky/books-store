@@ -31,7 +31,9 @@ import {
   deleteCategory,
   getCategory,
   listCategoriesForOwner,
+  parseCategoryKind,
   updateCategory,
+  type CategoryKind,
 } from "../data/categories.ts";
 import { backupJson, buildOwnerBackup } from "../data/backup.ts";
 import { HomePage } from "../ui/home-page.tsx";
@@ -44,7 +46,11 @@ import {
   CategoryDetailPage,
   DashboardPage,
 } from "../ui/dashboard-page.tsx";
-import { ShareCategoriesPage, ShareCategoryPage } from "../ui/share-pages.tsx";
+import {
+  ShareCategoriesPage,
+  ShareCategoryPage,
+  ShareFlowChooserPage,
+} from "../ui/share-pages.tsx";
 import { KV_NAMESPACE, kvKey, openKv, readLocal } from "../data/kv.ts";
 
 function returnTo(value: string | null, fallback: string): string {
@@ -60,6 +66,10 @@ function formCategoryIds(form: FormData): string[] {
   return form
     .getAll("categoryIds")
     .filter((value): value is string => typeof value === "string" && value.length > 0);
+}
+
+function formCategoryKind(form: FormData): CategoryKind {
+  return form.get("sending") === "1" || form.get("sending") === "on" ? "send" : "receive";
 }
 
 function healthResponse(body: Record<string, unknown>, status = 200) {
@@ -125,11 +135,13 @@ async function dashboardView(
 
 async function categoriesView(
   ownerId: string,
+  kind: CategoryKind | null,
   error: string | null = null,
   notice: string | null = null,
 ) {
   return {
-    categories: await listCategoriesForOwner(ownerId),
+    kind,
+    categories: kind ? await listCategoriesForOwner(ownerId, kind) : [],
     error,
     notice,
   };
@@ -304,19 +316,23 @@ export default createController(routes, {
       const auth = await loadAuthedUser(c.session, c.request);
       if ("missing" in auth) return c.render(accessMissing(routes.categories.href()));
       if ("stale" in auth) return c.render(accessStale(routes.categories.href()));
+      const url = new URL(c.request.url);
 
       if (c.request.method === "POST") {
         const form = await c.request.formData();
         const intent = text(form, "intent");
+        const kind = parseCategoryKind(url.searchParams.get("kind")) ?? formCategoryKind(form);
 
         if (intent === "create-category") {
           const result = await createCategory({
             ownerId: auth.id,
             name: text(form, "name"),
             description: text(form, "description"),
+            kind: formCategoryKind(form),
           });
           const view = await categoriesView(
             auth.id,
+            result.ok ? result.category.kind : kind,
             result.ok ? null : result.error,
             result.ok ? "Category created" : null,
           );
@@ -329,9 +345,11 @@ export default createController(routes, {
             categoryId: text(form, "categoryId"),
             name: text(form, "name"),
             description: text(form, "description"),
+            kind: formCategoryKind(form),
           });
           const view = await categoriesView(
             auth.id,
+            result.ok ? result.category.kind : kind,
             result.ok ? null : result.error,
             result.ok ? "Category saved" : null,
           );
@@ -344,6 +362,7 @@ export default createController(routes, {
           const result = await deleteCategory(auth.id, categoryId);
           const view = await categoriesView(
             auth.id,
+            kind,
             result.ok ? null : result.error,
             result.ok ? "Category deleted" : null,
           );
@@ -351,7 +370,11 @@ export default createController(routes, {
         }
       }
 
-      return c.render(<CategoriesPage {...await categoriesView(auth.id)} />);
+      return c.render(
+        <CategoriesPage
+          {...await categoriesView(auth.id, parseCategoryKind(url.searchParams.get("kind")))}
+        />,
+      );
     },
     async category(c) {
       const auth = await loadAuthedUser(c.session, c.request);
@@ -490,34 +513,38 @@ export default createController(routes, {
       const shareId = c.params.shareId;
       const invite = await getShareInvite(shareId);
       if (!invite)
-        return c.render(
-          <ShareCategoriesPage shareId={shareId} categories={[]} error="Ссылка не найдена" />,
-          { status: 404 },
-        );
-      const categories = await listCategoriesForOwner(invite.ownerId);
+        return c.render(<ShareFlowChooserPage shareId={shareId} error="Ссылка не найдена" />, {
+          status: 404,
+        });
+      const kind = parseCategoryKind(new URL(c.request.url).searchParams.get("kind"));
+      if (!kind) return c.render(<ShareFlowChooserPage shareId={shareId} error={null} />);
+      const categories = await listCategoriesForOwner(invite.ownerId, kind);
       return c.render(
-        <ShareCategoriesPage shareId={shareId} categories={categories} error={null} />,
+        <ShareCategoriesPage shareId={shareId} kind={kind} categories={categories} error={null} />,
       );
     },
     async shareCategory(c) {
       const { shareId, categoryId } = c.params;
       const invite = await getShareInvite(shareId);
       if (!invite)
-        return c.render(
-          <ShareCategoriesPage shareId={shareId} categories={[]} error="Ссылка не найдена" />,
-          { status: 404 },
-        );
+        return c.render(<ShareFlowChooserPage shareId={shareId} error="Ссылка не найдена" />, {
+          status: 404,
+        });
       const category = await getCategory(categoryId);
+      const urlKind = parseCategoryKind(new URL(c.request.url).searchParams.get("kind"));
+      const kind = urlKind ?? category?.kind ?? "receive";
       if (!category || category.ownerId !== invite.ownerId)
         return c.render(
           <ShareCategoriesPage
             shareId={shareId}
-            categories={await listCategoriesForOwner(invite.ownerId)}
+            kind={kind}
+            categories={await listCategoriesForOwner(invite.ownerId, kind)}
             error="Категория не найдена"
           />,
           { status: 404 },
         );
 
+      const isSend = category.kind === "send";
       if (c.request.method === "POST") {
         const form = await c.request.formData();
         const intent = text(form, "intent");
@@ -530,14 +557,19 @@ export default createController(routes, {
           return c.render(
             <ShareCategoryPage
               shareId={shareId}
+              kind={kind}
               category={category}
               books={books}
               error={result.ok ? null : "Не удалось изменить отметку"}
               notice={
                 result.ok
                   ? intent === "mark-received"
-                    ? "Книга отмечена как полученная"
-                    : "Отметка о получении снята"
+                    ? isSend
+                      ? "Книга отмечена как отправленная"
+                      : "Книга отмечена как полученная"
+                    : isSend
+                      ? "Отметка об отправке снята"
+                      : "Отметка о получении снята"
                   : null
               }
             />,
@@ -550,6 +582,7 @@ export default createController(routes, {
       return c.render(
         <ShareCategoryPage
           shareId={shareId}
+          kind={kind}
           category={category}
           books={books}
           error={null}
