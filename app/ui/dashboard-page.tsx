@@ -52,26 +52,28 @@ export function DashboardPage(
           <p mix={brandMark}>Your list</p>
           <h1 mix={displayTitle}>Books dashboard</h1>
           <p mix={css(muted)}>
-            Upload covers, assign categories, and create a share link so others can browse by
+            Manage categories to add books, then create a share link so others can browse by
             category and mark books as received.
           </p>
           {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
           {notice ? <p mix={css({ color: "#b8d4a8" })}>{notice}</p> : null}
         </section>
 
-        {panel(
-          <>
-            <h2 mix={css({ margin: "0 0 16px", fontFamily: "Fraunces, Georgia, serif" })}>
-              Add a book
-            </h2>
-            <BookUploadForm action="/app" categories={categories} />
-          </>,
-        )}
-
-        <section mix={css({ maxWidth: "720px", marginBottom: "48px" })}>
-          <h2 mix={css({ fontFamily: "Fraunces, Georgia, serif" })}>Books</h2>
-          <OwnerBookList books={books} categories={categories} action="/app" />
-        </section>
+        {books.length > 0 ? (
+          <section mix={css({ maxWidth: "720px", marginBottom: "48px" })}>
+            <h2 mix={css({ fontFamily: "Fraunces, Georgia, serif" })}>Uncategorized books</h2>
+            <p mix={css({ ...muted, marginTop: 0 })}>
+              These books are not in any category yet. Assign categories below, or open Categories
+              to upload into a category.
+            </p>
+            <OwnerBookList
+              books={books}
+              categories={categories}
+              action="/app"
+              emptyMessage="No uncategorized books."
+            />
+          </section>
+        ) : null}
 
         {panel(
           <>

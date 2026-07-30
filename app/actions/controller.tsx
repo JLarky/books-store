@@ -103,11 +103,12 @@ async function dashboardView(
 ) {
   const user = await getUser(ownerId);
   if (!user) return null;
-  const [books, categories, shareInvites] = await Promise.all([
+  const [allBooks, categories, shareInvites] = await Promise.all([
     listBooksForOwner(ownerId),
     listCategoriesForOwner(ownerId),
     listShareInvites(ownerId),
   ]);
+  const books = allBooks.filter((book) => book.categoryIds.length === 0);
   return { user, books, categories, shareInvites, error, notice };
 }
 
@@ -243,16 +244,6 @@ export default createController(routes, {
       if (c.request.method === "POST") {
         const form = await c.request.formData();
         const intent = text(form, "intent");
-
-        if (intent === "add-book") {
-          const result = await handleAddBook(auth.id, form);
-          const view = await dashboardView(
-            auth.id,
-            result.ok ? null : result.error,
-            result.ok ? "Book added" : null,
-          );
-          return c.render(<DashboardPage {...view!} />, { status: result.ok ? 200 : 400 });
-        }
 
         if (intent === "update-book") {
           const result = await handleUpdateBook(auth.id, form);
