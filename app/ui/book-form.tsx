@@ -201,9 +201,7 @@ export function OwnerBookList(
                   description={book.description}
                   existingImageSrc={`/books/${book.id}/image`}
                 />
-                {categories.length > 0
-                  ? categoryPicker(categories, book.categoryIds)
-                  : null}
+                {categories.length > 0 ? categoryPicker(categories, book.categoryIds) : null}
                 <button type="submit" mix={button({ secondary: true })}>
                   Save book
                 </button>
