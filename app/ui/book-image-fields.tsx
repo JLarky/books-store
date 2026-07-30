@@ -1,15 +1,14 @@
 import { clientEntry, css, on, type Handle } from "remix/ui";
-import { MAX_IMAGE_EDGE } from "../utils/image.ts";
+import { fitImageSize, MAX_IMAGE_EDGE } from "../utils/image.ts";
 import { muted } from "./styles.ts";
 
-function loadImageSize(file: File): Promise<{ width: number; height: number }> {
+function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const image = new Image();
     image.onload = () => {
-      const size = { width: image.naturalWidth, height: image.naturalHeight };
       URL.revokeObjectURL(url);
-      resolve(size);
+      resolve(image);
     };
     image.onerror = () => {
       URL.revokeObjectURL(url);
@@ -19,11 +18,63 @@ function loadImageSize(file: File): Promise<{ width: number; height: number }> {
   });
 }
 
+function outputType(file: File): { type: string; quality?: number; extension: string } {
+  if (file.type === "image/jpeg") return { type: "image/jpeg", quality: 0.92, extension: "jpg" };
+  if (file.type === "image/webp") return { type: "image/webp", quality: 0.92, extension: "webp" };
+  return { type: "image/png", extension: "png" };
+}
+
+function renamedFile(original: string, extension: string): string {
+  const base = original.replace(/\.[^.]+$/, "") || "cover";
+  return `${base}.${extension}`;
+}
+
+async function resizeImageToFit(file: File): Promise<{
+  file: File;
+  original: { width: number; height: number };
+  size: { width: number; height: number };
+  resized: boolean;
+}> {
+  const image = await loadImage(file);
+  const original = { width: image.naturalWidth, height: image.naturalHeight };
+  const size = fitImageSize(original.width, original.height);
+  if (size.width === original.width && size.height === original.height) {
+    return { file, original, size, resized: false };
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = size.width;
+  canvas.height = size.height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not resize image");
+  context.drawImage(image, 0, 0, size.width, size.height);
+
+  const { type, quality, extension } = outputType(file);
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) => {
+        if (result) resolve(result);
+        else reject(new Error("Could not resize image"));
+      },
+      type,
+      quality,
+    );
+  });
+
+  return {
+    file: new File([blob], renamedFile(file.name || "cover", extension), {
+      type: blob.type || type,
+    }),
+    original,
+    size,
+    resized: true,
+  };
+}
+
 function assignFile(input: HTMLInputElement, file: File) {
   const transfer = new DataTransfer();
   transfer.items.add(file);
   input.files = transfer.files;
-  input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 export const BookImageFields = clientEntry(
@@ -35,7 +86,6 @@ export const BookImageFields = clientEntry(
       existingImageSrc?: string | null;
     }>,
   ) {
-    let descriptionText = h.props.description ?? "";
     let previewUrl = h.props.existingImageSrc ?? null;
     let objectUrl: string | null = null;
     let message: string | null = null;
@@ -47,23 +97,25 @@ export const BookImageFields = clientEntry(
       previewUrl = objectUrl;
     }
 
-    async function acceptImage(file: File, input: HTMLInputElement | null) {
+    async function acceptImage(file: File, input: HTMLInputElement | null, fromPaste: boolean) {
       try {
-        const size = await loadImageSize(file);
-        if (size.width > MAX_IMAGE_EDGE || size.height > MAX_IMAGE_EDGE) {
-          messageKind = "error";
-          message = `Image must be at most ${MAX_IMAGE_EDGE}×${MAX_IMAGE_EDGE} pixels (got ${size.width}×${size.height}). Client-side resize is coming later.`;
-          void h.update();
-          return;
-        }
-        if (input) assignFile(input, file);
-        setPreview(file);
+        const result = await resizeImageToFit(file);
+        if (input) assignFile(input, result.file);
+        setPreview(result.file);
         messageKind = "notice";
-        message = `Cover set from pasted image (${size.width}×${size.height}).`;
+        if (result.resized) {
+          message = `Cover resized from ${result.original.width}×${result.original.height} to ${result.size.width}×${result.size.height}.`;
+        } else if (fromPaste) {
+          message = `Cover set from pasted image (${result.size.width}×${result.size.height}).`;
+        } else {
+          message = null;
+        }
         void h.update();
       } catch {
+        if (input && !fromPaste) input.value = "";
         messageKind = "error";
         message = "Could not read that image.";
+        if (!fromPaste) previewUrl = h.props.existingImageSrc ?? null;
         void h.update();
       }
     }
@@ -71,7 +123,6 @@ export const BookImageFields = clientEntry(
     function onPaste(event: Event) {
       const clipboard = event as ClipboardEvent;
       const target = clipboard.target as HTMLTextAreaElement;
-      descriptionText = target.value;
       const items = clipboard.clipboardData?.items;
       if (!items) return;
       for (const item of items) {
@@ -81,7 +132,7 @@ export const BookImageFields = clientEntry(
         clipboard.preventDefault();
         const form = target.closest("form");
         const input = form?.querySelector<HTMLInputElement>('input[name="image"]') ?? null;
-        void acceptImage(file, input);
+        void acceptImage(file, input, true);
         return;
       }
     }
@@ -90,27 +141,7 @@ export const BookImageFields = clientEntry(
       const input = event.target as HTMLInputElement;
       const file = input.files?.[0];
       if (!file) return;
-      void (async () => {
-        try {
-          const size = await loadImageSize(file);
-          if (size.width > MAX_IMAGE_EDGE || size.height > MAX_IMAGE_EDGE) {
-            input.value = "";
-            messageKind = "error";
-            message = `Image must be at most ${MAX_IMAGE_EDGE}×${MAX_IMAGE_EDGE} pixels (got ${size.width}×${size.height}). Client-side resize is coming later.`;
-            previewUrl = h.props.existingImageSrc ?? null;
-            void h.update();
-            return;
-          }
-          setPreview(file);
-          messageKind = "notice";
-          message = null;
-          void h.update();
-        } catch {
-          messageKind = "error";
-          message = "Could not read that image.";
-          void h.update();
-        }
-      })();
+      void acceptImage(file, input, false);
     }
 
     return () => (
@@ -144,19 +175,14 @@ export const BookImageFields = clientEntry(
           <textarea
             name="description"
             required
-            value={descriptionText}
+            defaultValue={h.props.description ?? ""}
             placeholder="Title, notes… Paste an image here to set the cover."
-            mix={[
-              on<HTMLTextAreaElement>("paste", onPaste),
-              on<HTMLTextAreaElement>("input", (event) => {
-                descriptionText = (event.target as HTMLTextAreaElement).value;
-              }),
-            ]}
+            mix={on<HTMLTextAreaElement>("paste", onPaste)}
           />
         </label>
         <p mix={css({ ...muted, margin: 0, fontSize: "13px" })}>
-          Paste an image into the description field to use it as the cover. Max {MAX_IMAGE_EDGE}×
-          {MAX_IMAGE_EDGE} px for now.
+          Paste an image into the description field to use it as the cover. Images larger than{" "}
+          {MAX_IMAGE_EDGE}×{MAX_IMAGE_EDGE} px are resized to fit.
         </p>
         {message ? (
           <p

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getImageDimensions, MAX_IMAGE_EDGE, validateImageEdge } from "../app/utils/image.ts";
+import {
+  fitImageSize,
+  getImageDimensions,
+  MAX_IMAGE_EDGE,
+  validateImageEdge,
+} from "../app/utils/image.ts";
 
 function fakePng(width: number, height: number): Uint8Array {
   const bytes = new Uint8Array(24);
@@ -27,4 +32,12 @@ void test(`rejects images larger than ${MAX_IMAGE_EDGE}px on either edge`, () =>
   const oversized = validateImageEdge(fakePng(640, 480));
   assert.equal(oversized.ok, false);
   if (!oversized.ok) assert.match(oversized.error, /640×480/);
+});
+
+void test("fitImageSize scales down while preserving aspect ratio", () => {
+  assert.deepEqual(fitImageSize(300, 300), { width: 300, height: 300 });
+  assert.deepEqual(fitImageSize(150, 80), { width: 150, height: 80 });
+  assert.deepEqual(fitImageSize(1056, 541), { width: 300, height: 154 });
+  assert.deepEqual(fitImageSize(600, 1200), { width: 150, height: 300 });
+  assert.deepEqual(fitImageSize(301, 100), { width: 300, height: 100 });
 });

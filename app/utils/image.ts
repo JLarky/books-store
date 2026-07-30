@@ -106,6 +106,20 @@ export function getImageDimensions(bytes: Uint8Array): ImageSize | null {
   return pngSize(bytes) ?? jpegSize(bytes) ?? gifSize(bytes) ?? webpSize(bytes);
 }
 
+/** Scale down so neither edge exceeds `maxEdge`, preserving aspect ratio. */
+export function fitImageSize(
+  width: number,
+  height: number,
+  maxEdge: number = MAX_IMAGE_EDGE,
+): ImageSize {
+  if (width <= maxEdge && height <= maxEdge) return { width, height };
+  const scale = Math.min(maxEdge / width, maxEdge / height);
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
 export function validateImageEdge(
   bytes: Uint8Array,
 ): { ok: true; size: ImageSize } | { ok: false; error: string } {
