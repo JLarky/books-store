@@ -600,6 +600,7 @@ export default createController(routes, {
                 allReceived: result.ok && intent === "mark-received" && allReceived,
                 receivedCount,
                 totalCount,
+                receivedAt: result.ok && intent === "mark-received" ? result.book.receivedAt : null,
               },
               { status: result.ok ? 200 : 400, headers: { "cache-control": "no-store" } },
             );

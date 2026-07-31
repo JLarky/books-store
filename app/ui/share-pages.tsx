@@ -3,17 +3,9 @@ import { css } from "remix/ui";
 import type { Book } from "../data/books.ts";
 import { categoryCopyProgress } from "../data/books.ts";
 import type { Category, CategoryKind } from "../data/categories.ts";
-import { ConfirmDeleteForm } from "./confirm-delete-form.tsx";
 import { Document } from "./document.tsx";
-import { MarkReceivedForm } from "./mark-received-form.tsx";
+import { ShareCategoryBooks } from "./share-category-books.tsx";
 import { button, muted, shell, brandMark, displayTitle } from "./styles.ts";
-
-function formatReceivedRu(iso: string) {
-  return new Date(iso).toLocaleString("ru-RU", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 function categoryProgressRu(books: Book[], isSend: boolean): string | null {
   const { receivedCount, totalCount, allReceived } = categoryCopyProgress(books);
@@ -198,7 +190,6 @@ export function ShareCategoryPage(
   const isSend = kind === "send" || category.kind === "send";
   const backHref = `/share/${shareId}?kind=${kind}`;
   const action = `/share/${shareId}/categories/${category.id}?kind=${kind}`;
-  const progress = categoryProgressRu(books, isSend);
   return () => (
     <Document title={`${category.name} · Books Store`} lang="ru">
       <main mix={shell}>
@@ -225,101 +216,22 @@ export function ShareCategoryPage(
           {category.description ? (
             <p mix={css({ ...muted, whiteSpace: "pre-wrap" })}>{category.description}</p>
           ) : null}
-          {progress ? (
-            <p
-              mix={css({
-                color: progress.startsWith("Все") ? "#b8d4a8" : "#c4b5a0",
-                fontWeight: 700,
-                margin: "12px 0 0",
-              })}
-            >
-              {progress}
-            </p>
-          ) : null}
           {error ? <p mix={css({ color: "#ffb4a8" })}>{error}</p> : null}
           {notice ? <p mix={css({ color: "#b8d4a8" })}>{notice}</p> : null}
         </section>
-        {books.length === 0 ? (
-          <p mix={css(muted)}>В этой категории пока нет книг.</p>
-        ) : (
-          <ul
-            mix={css({
-              listStyle: "none",
-              margin: 0,
-              padding: "0 0 64px",
-              maxWidth: "720px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "20px",
-            })}
-          >
-            {books.map((book) => (
-              <li
-                key={book.id}
-                mix={css({
-                  display: "grid",
-                  gridTemplateColumns: "minmax(96px, 140px) 1fr",
-                  gap: "18px",
-                  padding: "18px",
-                  background: "#261f1a",
-                  border: "1px solid #4a4036",
-                  borderRadius: "18px",
-                  "@media (max-width: 560px)": { gridTemplateColumns: "1fr" },
-                })}
-              >
-                <img
-                  src={`/books/${book.id}/image?share=${encodeURIComponent(shareId)}`}
-                  alt=""
-                  mix={css({
-                    width: "100%",
-                    aspectRatio: "3 / 4",
-                    objectFit: "cover",
-                    borderRadius: "12px",
-                    background: "#141210",
-                  })}
-                />
-                <div>
-                  <p mix={css({ margin: "0 0 12px", whiteSpace: "pre-wrap" })}>
-                    {book.description}
-                  </p>
-                  {book.twoCopies ? (
-                    <p mix={css({ ...muted, margin: "0 0 12px", fontSize: "14px" })}>2 штуки</p>
-                  ) : null}
-                  {book.receivedAt ? (
-                    <div>
-                      <p mix={css({ color: "#b8d4a8", margin: 0 })}>
-                        {isSend ? "Отправлено" : "Получено"}: {formatReceivedRu(book.receivedAt)}
-                      </p>
-                      <ConfirmDeleteForm
-                        action={action}
-                        message={
-                          isSend
-                            ? "Снять отметку об отправке этой книги?"
-                            : "Снять отметку о получении этой книги?"
-                        }
-                        label="Ой, на самом деле нет"
-                        fields={{ intent: "unmark-received", bookId: book.id }}
-                      />
-                    </div>
-                  ) : (
-                    <MarkReceivedForm
-                      action={action}
-                      bookId={book.id}
-                      label={
-                        isSend
-                          ? "Я отправил(а) эту книгу"
-                          : book.twoCopies
-                            ? "Я получила книги --- 2 штуки"
-                            : "Я получил(а) эту книгу"
-                      }
-                      allDoneMessage={isSend ? "Все книги отправлены" : "Все книги получены"}
-                    />
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ShareCategoryBooks
+          shareId={shareId}
+          action={action}
+          isSend={isSend}
+          books={books.map((book) => ({
+            id: book.id,
+            description: book.description,
+            twoCopies: book.twoCopies,
+            receivedAt: book.receivedAt,
+            imageByteLength: book.imageByteLength,
+          }))}
+          allDoneMessage={isSend ? "Все книги отправлены" : "Все книги получены"}
+        />
       </main>
     </Document>
   );
